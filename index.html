@@ -1030,7 +1030,7 @@ editorControl.addEventListener('mouseUp', () => { setTimeout(() => { editorGizmo
    ===================================================================== */
 const ASSET_CACHE_KEY = 'ultimateFishingAssetCacheV1';
 const ASSET_URL_RE = /\.(glb|gltf|bin|png|jpe?g|webp|gif|bmp|tga|dds|ktx2|mtl|obj|fbx|hdr)(\?.*)?$/i;
-const MAX_CACHE_ENTRY = 3 * 1024 * 1024;
+const MAX_CACHE_ENTRY = 8 * 1024 * 1024;   // .bin files can be big
 let assetCache = {};
 try { assetCache = JSON.parse(localStorage.getItem(ASSET_CACHE_KEY) || '{}') || {}; } catch (e) { assetCache = {}; }
 let assetCacheDirty = false, assetCacheTimer = null;
@@ -1061,6 +1061,45 @@ function updateCacheInfo() {
   el.textContent = n ? ('Cached: ' + n + ' file(s) · ' + (bytes / 1024).toFixed(0) + ' KB') : 'Cache: empty';
 }
 
+/* ---- Blob-URL layer over the localStorage cache -------------------
+   localStorage stores data: URLs. THREE.FileLoader (used by GLTFLoader
+   for .bin) can be flaky with huge data: URLs, so on this session we
+   re-hydrate each cached entry into a Blob URL — those XHR reliably. */
+const _blobUrlCache = {};
+function _dataUrlToBlobUrl(dataUrl) {
+  const comma = dataUrl.indexOf(',');
+  if (comma < 0) return null;
+  const meta = dataUrl.substring(5, comma);           // strip "data:"
+  const isBase64 = /;base64$/i.test(meta);
+  const mime = meta.replace(/;base64$/i, '') || 'application/octet-stream';
+  const payload = dataUrl.substring(comma + 1);
+  let bytes;
+  if (isBase64) {
+    const bin = atob(payload);
+    bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  } else {
+    const dec = decodeURIComponent(payload);
+    bytes = new Uint8Array(dec.length);
+    for (let i = 0; i < dec.length; i++) bytes[i] = dec.charCodeAt(i);
+  }
+  return URL.createObjectURL(new Blob([bytes], { type: mime }));
+}
+function getCachedUrl(originalUrl) {
+  if (_blobUrlCache[originalUrl]) return _blobUrlCache[originalUrl];
+  const stored = assetCache[originalUrl];
+  if (!stored) return null;
+  // Older cache versions already stored a blob: URL — pass through.
+  if (/^blob:/i.test(stored)) { _blobUrlCache[originalUrl] = stored; return stored; }
+  // data: URL → Blob URL (session-scoped, so we rebuild each session)
+  if (/^data:/i.test(stored)) {
+    const b = _dataUrlToBlobUrl(stored);
+    if (b) { _blobUrlCache[originalUrl] = b; return b; }
+  }
+  // Fallback: absolute URL or anything else — just return it.
+  return stored;
+}
+
 const _nativeFetch = window.fetch ? window.fetch.bind(window) : null;
 function tryCacheAssetUrl(u) {
   if (!_nativeFetch || !u || !/^https?:/i.test(u) || !ASSET_URL_RE.test(u) || assetCache[u]) return;
@@ -1079,7 +1118,10 @@ if (_nativeFetch) {
     let url = '';
     try { url = (typeof input === 'string') ? input : (input && input.url) || ''; } catch (e) {}
     if (url && ASSET_URL_RE.test(url) && assetCache[url]) {
-      try { return await _nativeFetch(assetCache[url]); } catch (e) { /* fall through to network */ }
+      const cachedUrl = getCachedUrl(url);
+      if (cachedUrl) {
+        try { return await _nativeFetch(cachedUrl); } catch (e) { /* fall through */ }
+      }
     }
     const res = await _nativeFetch(input, init);
     try {
@@ -1197,8 +1239,21 @@ $('ed-redo').onclick = doRedo;
 function serializeObject(m) {
   const p = m.object.position, r = m.object.rotation, s = m.object.scale;
   const f = n => Math.round(n * 1000) / 1000;
+  // Imported models carry their own material colours (usually tinted by
+  // a texture). Serialising a single colour would then paint every
+  // material in that model the same tint on reload — that's the "turns
+  // brown" bug. So only persist colour for objects we deliberately tint.
   let color = null;
-  m.object.traverse(o => { if (color) return; if (o.isMesh && o.material) { const mm = Array.isArray(o.material) ? o.material[0] : o.material; if (mm && mm.color) color = '#' + mm.color.getHexString(); } });
+  const tintable = !!(m.isPrimitive || m.isPrePlaced || m.specialRole);
+  if (tintable) {
+    m.object.traverse(o => {
+      if (color) return;
+      if (o.isMesh && o.material) {
+        const mm = Array.isArray(o.material) ? o.material[0] : o.material;
+        if (mm && mm.color) color = '#' + mm.color.getHexString();
+      }
+    });
+  }
   const base = { name: m.name, isPrimitive: !!m.isPrimitive, isPrePlaced: !!m.isPrePlaced, prePlacedId: m.prePlacedId || null, position: [f(p.x), f(p.y), f(p.z)], rotation: [f(r.x), f(r.y), f(r.z)], scale: [f(s.x), f(s.y), f(s.z)], color: color };
   if (m.specialRole) base.specialRole = m.specialRole;
   if (m.isPrimitive) { base.primitiveType = m.primitiveType; base.primitiveArgs = m.primitiveArgs; }
@@ -1230,7 +1285,12 @@ function restoreModelEntry(entry, onComplete) {
       obj.position.fromArray(entry.position);
       obj.rotation.set(entry.rotation[0], entry.rotation[1], entry.rotation[2]);
       obj.scale.fromArray(entry.scale);
-      if (entry.color) applyColorToObject(obj, entry.color);
+      // Only apply a stored colour when the entry is a primitive / special
+      // box / pre-placed object — never for imported files, whose materials
+      // should keep their own (texture-driven) colours.
+      if (entry.color && !entry.url && !/\.(glb|gltf|obj|fbx)(\?.*)?$/i.test(entry.assetPath || '')) {
+        applyColorToObject(obj, entry.color);
+      }
       obj.userData.assetPath = entry.assetPath;
       obj.userData.url = entry.url;
       if (!obj.parent) scene.add(obj);
@@ -1276,6 +1336,7 @@ async function loadEditorScene() {
   }
   historyReady = true;
   pushHistory();
+  ensureDefaultSpawnPoint();
   applySpawnPoint();
 }
 $('ed-clear-saved').onclick = () => { if (!confirm('Clear saved editor scene?')) return; try { localStorage.removeItem(EDITOR_SCENE_KEY); } catch (e) {} editorToast('Saved scene cleared'); };
@@ -1285,16 +1346,19 @@ let currentAssetBaseURL = '';
 assetLoadingManager.setURLModifier(url => {
   if (!url) return url;
   if (/^(https?|data|blob):/i.test(url)) {
-    if (assetCache[url]) return assetCache[url];              // <-- serve .bin / textures / model from local cache
-    if (!restoreInProgress) dbg('info', 'Texture (absolute)', url);
+    const cached = getCachedUrl(url);
+    if (cached) return cached;                        // <-- Blob URL from cache
+    if (!restoreInProgress) dbg('info', 'Asset (absolute)', url);
     return url;
   }
   if (!currentAssetBaseURL) return url;
   let resolved;
-  try { resolved = new URL(url, currentAssetBaseURL).href; } catch (e) { resolved = currentAssetBaseURL + url.replace(/^\.?\/+/, ''); }
-  if (assetCache[resolved]) return assetCache[resolved];      // <-- cached copy wins
-  tryCacheAssetUrl(resolved);                                 // <-- remember for next time
-  if (!restoreInProgress) dbg('info', 'Texture resolving: "' + url + '"', resolved);
+  try { resolved = new URL(url, currentAssetBaseURL).href; }
+  catch (e) { resolved = currentAssetBaseURL + url.replace(/^\.?\/+/, ''); }
+  const cached = getCachedUrl(resolved);
+  if (cached) return cached;                          // <-- Blob URL from cache
+  tryCacheAssetUrl(resolved);
+  if (!restoreInProgress) dbg('info', 'Asset resolving: "' + url + '"', resolved);
   return resolved;
 });
 assetLoadingManager.onError = url => { debugState.texturesFail++; if (!restoreInProgress) dbg('fail', 'Could not load texture:', url); };
@@ -1488,6 +1552,56 @@ function applySpawnPoint() {
   const p = sp.object.getWorldPosition(new THREE.Vector3());
   camera.position.set(p.x, p.y + PLAYER_HEIGHT + 2, p.z);
 }
+function ensureDefaultSpawnPoint() {
+  if (editorModels.some(m => m.specialRole === 'spawn')) return;   // already have one
+  const gy = (typeof islandHeightAt === 'function' ? islandHeightAt(0, 0) : null);
+  const y = (gy != null ? gy : ISLAND_TOP_H * ISLAND_SCALE) + 1;
+  createSpecialBox('spawn', {
+    position: [0, y, 0],
+    name: 'SpawnPoint',
+    silent: true
+  });
+  saveEditorScene(true);
+}
+
+function setBoxOpacity(obj, opacity) {
+  obj.traverse(o => {
+    if (!o.isMesh || !o.material) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    mats.forEach(m => {
+      if (opacity < 1) {
+        m.transparent = true;
+        m.opacity = opacity;
+        m.depthWrite = false;
+      } else if (m.transparent) {
+        m.transparent = false;
+        m.opacity = 1;
+        m.depthWrite = true;
+      }
+      m.needsUpdate = true;
+    });
+  });
+}
+
+function updateSpecialBoxVisuals(inEditor) {
+  editorModels.forEach(m => {
+    if (!m.specialRole) return;
+    if (m.object.userData.userHidden) {           // user toggled it off
+      m.object.visible = false;
+      return;
+    }
+    if (inEditor) {
+      m.object.visible = true;
+      const isSelected = editorSelection.indexOf(m.object) >= 0;
+      setBoxOpacity(m.object, isSelected ? 1.0 : 0.4);
+    } else {
+      // In-game: spawn marker is invisible; market/shop stay solid.
+      if (m.specialRole === 'spawn') m.object.visible = false;
+      else m.object.visible = true;
+      setBoxOpacity(m.object, 1.0);
+    }
+  });
+}
 
 const primitiveCounter = {};
 function createPrimitive(type, opts) {
@@ -1644,7 +1758,7 @@ function updateSelectionVisuals() {
   editorBoxes.forEach(b => { scene.remove(b); b.geometry.dispose(); });
   editorBoxes = [];
   if (editorBox) { scene.remove(editorBox); editorBox.geometry.dispose(); editorBox = null; }
-  if (editorSelection.length === 0) { editorControl.detach(); editorControl.visible = false; editorControl.enabled = false; return; }
+  if (editorSelection.length === 0) { editorControl.detach(); editorControl.visible = false; editorControl.enabled = false; if (editorMode) updateSpecialBoxVisuals(true); return; }
   editorControl.attach(editorSelected);
   editorControl.visible = true; editorControl.enabled = true;
   editorSelection.forEach(obj => {
@@ -1652,6 +1766,7 @@ function updateSelectionVisuals() {
     b.material.depthTest = false; b.material.transparent = true; b.material.opacity = 0.9;
     scene.add(b); editorBoxes.push(b);
   });
+  if (editorMode) updateSpecialBoxVisuals(true);
 }
 function refreshEditorSceneList() {
   const el = $('ed-scene');
@@ -1665,7 +1780,12 @@ function refreshEditorSceneList() {
     row.innerHTML = `<span class="nm">${m.name}${tag}</span><button class="mini">${m.object.visible ? '👁' : '🚫'}</button><button class="mini">✕</button>`;
     row.onclick = (e) => editorSelect(m.object, e.shiftKey || e.ctrlKey || e.metaKey || multiSelectMode);
     const [eye, del] = row.querySelectorAll('.mini');
-    eye.onclick = e => { e.stopPropagation(); m.object.visible = !m.object.visible; refreshEditorSceneList(); saveEditorScene(true); };
+    eye.onclick = e => {
+      e.stopPropagation();
+      m.object.userData.userHidden = !m.object.userData.userHidden;
+      m.object.visible = !m.object.userData.userHidden;
+      refreshEditorSceneList(); saveEditorScene(true);
+    };
     del.onclick = e => { e.stopPropagation(); editorRemoveModel(m); };
     el.appendChild(row);
   });
@@ -1772,6 +1892,8 @@ $('ed-scan').onclick = () => editorScanRepo(false);
 $('ed-advanced-toggle').onclick = () => { const el = $('ed-advanced'); const open = el.style.display === 'block'; el.style.display = open ? 'none' : 'block'; $('ed-advanced-toggle').textContent = open ? '⚙ Advanced ▾' : '⚙ Advanced ▴'; };
 $('ed-clear-cache').onclick = () => {
   if (!confirm('Clear all cached model / texture / .bin data?')) return;
+  for (const k in _blobUrlCache) { try { URL.revokeObjectURL(_blobUrlCache[k]); } catch (e) {} }
+  for (const k in _blobUrlCache) delete _blobUrlCache[k];
   assetCache = {}; assetCacheDirty = true; persistAssetCacheNow();
   editorToast('Asset cache cleared');
 };
@@ -1981,10 +2103,12 @@ function animate() {
   if (editorMode) {
     updateEditorCamera(dt);
     editorSelection.forEach((obj, i) => { if (editorBoxes[i]) editorBoxes[i].setFromObject(obj); });
+    updateSpecialBoxVisuals(true);
     sky.position.copy(camera.position);
     renderer.render(scene, camera);
     return;
   }
+  updateSpecialBoxVisuals(false);
 
   const curFeetY = camera.position.y - PLAYER_HEIGHT;
   const stepCeil = curFeetY + STEP_UP;
