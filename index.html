@@ -501,14 +501,11 @@ const WATER_LEVEL = -0.5;
 function islandTopR(a) { return 5.2 * (1 + 0.28 * Math.sin(2 * a + ISLAND_P1) + 0.2 * Math.sin(3 * a + ISLAND_P2) + 0.1 * Math.sin(5 * a + ISLAND_P3)); }
 function islandBeachW(a) { return 6.5 + 2.0 * Math.sin(2 * a + ISLAND_P4) + 1.2 * Math.sin(4 * a + ISLAND_P1); }
 
-// --- islandHeightAt now respects the island's live transform ---
 function islandHeightAt(worldX, worldZ) {
   if (!islandGroup) return null;
   const ix = islandGroup.position.x, iy = islandGroup.position.y, iz = islandGroup.position.z;
   const sx = islandGroup.scale.x || 1, sy = islandGroup.scale.y || 1;
-  // Convert world point into island local space (ignore rotation for now — rotation on a radial island looks the same)
-  const lx = (worldX - ix) / sx;
-  const lz = (worldZ - iz) / sx;
+  const lx = (worldX - ix) / sx, lz = (worldZ - iz) / sx;
   const r = Math.hypot(lx, lz);
   if (r < 0.0001) return iy + ISLAND_TOP_H * sy;
   const a = Math.atan2(lz, lx);
@@ -554,9 +551,11 @@ const prePlacedGroups = [];
 function registerPreScene(id, name, objects) { prePlacedGroups.push({ id, name, objects: objects.filter(Boolean), visible: true, deleted: false }); }
 registerPreScene('water', 'Water', [water]);
 
+// ============= ISLAND (grass + sand are separate meshes) =============
 const islandGroup = new THREE.Group();
-islandGroup.scale.setScalar(ISLAND_SCALE);
 scene.add(islandGroup);
+
+let grassMesh = null, sandMesh = null;
 
 (function buildIsland() {
   let s = 7;
@@ -564,6 +563,7 @@ scene.add(islandGroup);
   const jit = a => (rnd() - 0.5) * 2 * a;
   const N = 44, RINGS = 8, TOP_H = ISLAND_TOP_H, BOTTOM = ISLAND_BOTTOM;
   const p1 = ISLAND_P1, p2 = ISLAND_P2, p3 = ISLAND_P3, p4 = ISLAND_P4;
+  const S = ISLAND_SCALE;
   const topR = a => 5.2 * (1 + 0.28 * Math.sin(2 * a + p1) + 0.2 * Math.sin(3 * a + p2) + 0.1 * Math.sin(5 * a + p3));
   const beachW = a => 6.5 + 2.0 * Math.sin(2 * a + p4) + 1.2 * Math.sin(4 * a + p1);
   const rings = [];
@@ -576,32 +576,65 @@ scene.add(islandGroup);
       if (i > 0 && i < RINGS) r += jit(0.3);
       let y = TOP_H + (BOTTOM - TOP_H) * t;
       if (i > 0 && i < RINGS) y += jit(0.04);
-      row.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
+      row.push(new THREE.Vector3(Math.cos(a) * r * S, y * S, Math.sin(a) * r * S));
     }
     rings.push(row);
   }
-  const pos = [], col = [];
-  const GREEN = new THREE.Color(0x3fd86b);
+
+  // GRASS: flat top fan
+  const grassPos = [];
+  const center = new THREE.Vector3(0, TOP_H * S, 0);
+  for (let j = 0; j < N; j++) {
+    const a = center, b = rings[0][(j + 1) % N], c = rings[0][j];
+    grassPos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+  }
+  const grassGeo = new THREE.BufferGeometry();
+  grassGeo.setAttribute('position', new THREE.Float32BufferAttribute(grassPos, 3));
+  grassGeo.computeVertexNormals();
+  const grassMat = new THREE.MeshStandardMaterial({
+    color: 0x3fd86b, roughness: 0.85, metalness: 0.02,
+    flatShading: true, side: THREE.DoubleSide, envMapIntensity: 0.6
+  });
+  grassMesh = new THREE.Mesh(grassGeo, grassMat);
+  grassMesh.castShadow = true; grassMesh.receiveShadow = true;
+  grassMesh.name = 'Grass';
+  grassMesh.userData.assetPath = 'preplaced:grass';
+  grassMesh.userData.url = '';
+  islandGroup.add(grassMesh);
+
+  // SAND: beach + rim + floor
+  const sandPos = [], sandCol = [];
   const sandDry = new THREE.Color(0xf6e6b8), sandWet = new THREE.Color(0xe0c98a), sandDeep = new THREE.Color(0xc0ad78);
-  function tri(a, b, c, color) { for (const v of [a, b, c]) { pos.push(v.x, v.y, v.z); col.push(color.r, color.g, color.b); } }
-  function sandColor(avgY) { const c = avgY > 0.45 ? sandDry : avgY > 0.0 ? sandWet : sandDeep; return c.clone().multiplyScalar(1 + jit(0.04)); }
-  const center = new THREE.Vector3(0, TOP_H, 0);
-  for (let j = 0; j < N; j++) tri(center, rings[0][(j + 1) % N], rings[0][j], GREEN);
+  function sandTri(a, b, c) {
+    const avgY = (a.y + b.y + c.y) / (3 * S);
+    const c0 = avgY > 0.45 ? sandDry : avgY > 0.0 ? sandWet : sandDeep;
+    const tint = c0.clone().multiplyScalar(1 + jit(0.04));
+    for (const v of [a, b, c]) { sandPos.push(v.x, v.y, v.z); sandCol.push(tint.r, tint.g, tint.b); }
+  }
   for (let i = 0; i < RINGS; i++) {
     for (let j = 0; j < N; j++) {
       const A = rings[i][j], B = rings[i][(j + 1) % N], C = rings[i + 1][(j + 1) % N], D = rings[i + 1][j];
-      if (rnd() > 0.5) { tri(A, B, C, sandColor((A.y + B.y + C.y) / 3)); tri(A, C, D, sandColor((A.y + C.y + D.y) / 3)); }
-      else { tri(A, B, D, sandColor((A.y + B.y + D.y) / 3)); tri(B, C, D, sandColor((B.y + C.y + D.y) / 3)); }
+      if (rnd() > 0.5) { sandTri(A, B, C); sandTri(A, C, D); }
+      else { sandTri(A, B, D); sandTri(B, C, D); }
     }
   }
-  const floor = new THREE.Vector3(0, BOTTOM, 0);
-  for (let j = 0; j < N; j++) tri(floor, rings[RINGS][j], rings[RINGS][(j + 1) % N], sandDeep);
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  geo.computeVertexNormals();
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, side: THREE.DoubleSide, roughness: 0.85, metalness: 0.02, envMapIntensity: 0.6 });
-  islandGroup.add(new THREE.Mesh(geo, mat));
+  const floor = new THREE.Vector3(0, BOTTOM * S, 0);
+  for (let j = 0; j < N; j++) sandTri(floor, rings[RINGS][j], rings[RINGS][(j + 1) % N]);
+
+  const sandGeo = new THREE.BufferGeometry();
+  sandGeo.setAttribute('position', new THREE.Float32BufferAttribute(sandPos, 3));
+  sandGeo.setAttribute('color', new THREE.Float32BufferAttribute(sandCol, 3));
+  sandGeo.computeVertexNormals();
+  const sandMat = new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 0.85, metalness: 0.02,
+    flatShading: true, side: THREE.DoubleSide, envMapIntensity: 0.6
+  });
+  sandMesh = new THREE.Mesh(sandGeo, sandMat);
+  sandMesh.castShadow = true; sandMesh.receiveShadow = true;
+  sandMesh.name = 'Sand';
+  sandMesh.userData.assetPath = 'preplaced:sand';
+  sandMesh.userData.url = '';
+  islandGroup.add(sandMesh);
 })();
 registerPreScene('island', 'Island', [islandGroup]);
 registerPreScene('clouds', 'Clouds', [clouds]);
@@ -737,19 +770,60 @@ document.addEventListener('mousedown', e => { if (editorMode && editorControl &&
 document.addEventListener('mousemove', e => { if (editorMode && editorControl && editorControl.dragging) return; if (isMouseDown && e.target.id === 'game-canvas') { doCameraLook(e.clientX - prevTouch.x, e.clientY - prevTouch.y); prevTouch = { x: e.clientX, y: e.clientY }; } });
 document.addEventListener('mouseup', () => isMouseDown = false);
 
+// ============= MESH-BASED COLLISION =============
 let collisionEnabled = false;
-const PLAYER_RADIUS = 0.5, PLAYER_HEIGHT = 2.0;
-function getPlayerBox(pos) {
-  return new THREE.Box3(new THREE.Vector3(pos.x - PLAYER_RADIUS, pos.y - PLAYER_HEIGHT + 0.1, pos.z - PLAYER_RADIUS), new THREE.Vector3(pos.x + PLAYER_RADIUS, pos.y + 0.3, pos.z + PLAYER_RADIUS));
-}
-function collidesWithAssets(pos) {
-  if (!collisionEnabled) return false;
-  const playerBox = getPlayerBox(pos);
+const PLAYER_RADIUS = 0.5;
+const PLAYER_HEIGHT = 1.7;
+const RAY_ANGLES = 8;
+const RAY_HEIGHTS = [0.15, 0.85, 1.55];
+
+const _raycaster = new THREE.Raycaster();
+_raycaster.firstHitOnly = true;
+const _DOWN = new THREE.Vector3(0, -1, 0);
+
+function getCollidableMeshes() {
+  const out = [];
   for (const m of editorModels) {
     if (!m.object.visible) continue;
-    if (m.isPrePlaced) continue;
-    const b = new THREE.Box3().setFromObject(m.object);
-    if (b.intersectsBox(playerBox)) return true;
+    const pid = m.prePlacedId;
+    if (pid === 'sky' || pid === 'clouds' || pid === 'water') continue;
+    m.object.traverse(o => {
+      if (o.isMesh && o.geometry && o.geometry.attributes && o.geometry.attributes.position) out.push(o);
+    });
+  }
+  return out;
+}
+
+function getGroundHeight(x, z) {
+  const meshes = getCollidableMeshes();
+  if (meshes.length === 0) return null;
+  _raycaster.set(new THREE.Vector3(x, 60, z), _DOWN);
+  _raycaster.far = 200;
+  const hits = _raycaster.intersectObjects(meshes, false);
+  for (const h of hits) {
+    if (h.point.y >= WATER_LEVEL - 0.2) return h.point.y;
+  }
+  return null;
+}
+
+function checkHorizontalCollision(pos) {
+  const meshes = getCollidableMeshes();
+  if (meshes.length === 0) return false;
+  const feetY = pos.y - PLAYER_HEIGHT;
+  for (let h = 0; h < RAY_HEIGHTS.length; h++) {
+    const baseY = feetY + RAY_HEIGHTS[h];
+    for (let a = 0; a < RAY_ANGLES; a++) {
+      const angle = (a / RAY_ANGLES) * Math.PI * 2;
+      const dx = Math.cos(angle), dz = Math.sin(angle);
+      _raycaster.set(new THREE.Vector3(pos.x, baseY, pos.z), new THREE.Vector3(dx, 0, dz));
+      _raycaster.far = PLAYER_RADIUS;
+      const hits = _raycaster.intersectObjects(meshes, false);
+      if (hits.length > 0) {
+        for (const hit of hits) {
+          if (hit.point.y > baseY + 0.05) return true;
+        }
+      }
+    }
   }
   return false;
 }
@@ -978,6 +1052,7 @@ async function loadEditorScene() {
         found.object.position.fromArray(entry.position);
         found.object.rotation.set(entry.rotation[0], entry.rotation[1], entry.rotation[2]);
         found.object.scale.fromArray(entry.scale);
+        if (entry.color && found.object.material && found.object.material.color) found.object.material.color.set(entry.color);
         restoredCount++;
       }
     } else if (entry.url) {
@@ -1398,7 +1473,7 @@ $('ed-del').onclick = () => {
 };
 document.querySelectorAll('.ed-btn.mode').forEach(btn => { btn.onclick = () => { document.querySelectorAll('.ed-btn.mode').forEach(b => b.classList.remove('on')); btn.classList.add('on'); editorControl.setMode(btn.dataset.mode); }; });
 $('ed-multiselect-toggle').onclick = () => { multiSelectMode = !multiSelectMode; const btn = $('ed-multiselect-toggle'); btn.classList.toggle('on', multiSelectMode); btn.textContent = (multiSelectMode ? '☑' : '☐') + ' Multi-Select: ' + (multiSelectMode ? 'ON' : 'OFF'); editorToast(multiSelectMode ? 'Multi-select ON' : 'Multi-select OFF'); };
-$('ed-collision-toggle').onclick = () => { collisionEnabled = !collisionEnabled; const btn = $('ed-collision-toggle'); btn.classList.toggle('on', collisionEnabled); btn.textContent = '🚶 Collision: ' + (collisionEnabled ? 'ON' : 'OFF'); editorToast(collisionEnabled ? 'Collision ON' : 'Collision OFF'); };
+$('ed-collision-toggle').onclick = () => { collisionEnabled = !collisionEnabled; const btn = $('ed-collision-toggle'); btn.classList.toggle('on', collisionEnabled); btn.textContent = '🚶 Collision: ' + (collisionEnabled ? 'ON' : 'OFF'); editorToast(collisionEnabled ? 'Collision ON — mesh-accurate' : 'Collision OFF'); };
 $('ed-scan').onclick = () => editorScanRepo(false);
 $('ed-advanced-toggle').onclick = () => { const el = $('ed-advanced'); const open = el.style.display === 'block'; el.style.display = open ? 'none' : 'block'; $('ed-advanced-toggle').textContent = open ? '⚙ Advanced ▾' : '⚙ Advanced ▴'; };
 $('ed-url-add').onclick = () => {
@@ -1435,6 +1510,12 @@ function editorRegisterPrePlaced() {
   if (typeof islandGroup !== 'undefined' && islandGroup && !editorModels.some(m => m.object === islandGroup)) {
     islandGroup.userData.assetPath = 'preplaced:island'; islandGroup.userData.url = '';
     editorModels.push({ name: 'Island', assetPath: 'preplaced:island', url: '', object: islandGroup, isPrePlaced: true, prePlacedId: 'island' });
+  }
+  if (typeof grassMesh !== 'undefined' && grassMesh && !editorModels.some(m => m.object === grassMesh)) {
+    editorModels.push({ name: 'Grass', assetPath: 'preplaced:grass', url: '', object: grassMesh, isPrePlaced: true, prePlacedId: 'grass' });
+  }
+  if (typeof sandMesh !== 'undefined' && sandMesh && !editorModels.some(m => m.object === sandMesh)) {
+    editorModels.push({ name: 'Sand', assetPath: 'preplaced:sand', url: '', object: sandMesh, isPrePlaced: true, prePlacedId: 'sand' });
   }
   if (typeof water !== 'undefined' && water && !editorModels.some(m => m.object === water)) {
     water.userData.assetPath = 'preplaced:water'; water.userData.url = '';
@@ -1601,15 +1682,35 @@ function animate() {
       const speed = 7 * dt;
       camera.getWorldDirection(_dir); _dir.y = 0; _dir.normalize();
       _right.crossVectors(_dir, _up).normalize();
-      const oldPos = camera.position.clone();
-      camera.position.addScaledVector(_dir, mY * speed).addScaledVector(_right, mX * speed);
-      const testY = islandHeightAt(camera.position.x, camera.position.z);
-      if (testY === null || testY < WATER_LEVEL) camera.position.copy(oldPos);
-      else if (collidesWithAssets(camera.position)) camera.position.copy(oldPos);
-      else bob += dt * 10;
+      const attempt = camera.position.clone().addScaledVector(_dir, mY * speed).addScaledVector(_right, mX * speed);
+
+      // Water barrier + mesh collision with sliding
+      const testGround = getGroundHeight(attempt.x, attempt.z);
+      const inWater = testGround === null || testGround < WATER_LEVEL;
+
+      if (inWater) {
+        const tryX = camera.position.clone(); tryX.x = attempt.x;
+        const gX = getGroundHeight(tryX.x, tryX.z);
+        if (gX !== null && gX >= WATER_LEVEL && !(collisionEnabled && checkHorizontalCollision(tryX))) camera.position.copy(tryX);
+        else {
+          const tryZ = camera.position.clone(); tryZ.z = attempt.z;
+          const gZ = getGroundHeight(tryZ.x, tryZ.z);
+          if (gZ !== null && gZ >= WATER_LEVEL && !(collisionEnabled && checkHorizontalCollision(tryZ))) camera.position.copy(tryZ);
+        }
+      } else if (collisionEnabled && checkHorizontalCollision(attempt)) {
+        const tryX = camera.position.clone(); tryX.x = attempt.x;
+        if (!checkHorizontalCollision(tryX)) camera.position.copy(tryX);
+        else {
+          const tryZ = camera.position.clone(); tryZ.z = attempt.z;
+          if (!checkHorizontalCollision(tryZ)) camera.position.copy(tryZ);
+        }
+      } else {
+        camera.position.copy(attempt);
+      }
+      bob += dt * 10;
     }
-    const groundY = islandHeightAt(camera.position.x, camera.position.z);
-    const baseY = (groundY !== null ? Math.max(groundY, WATER_LEVEL) : WATER_LEVEL) + 1.7;
+    const groundY = getGroundHeight(camera.position.x, camera.position.z);
+    const baseY = (groundY !== null ? Math.max(groundY, WATER_LEVEL) : WATER_LEVEL) + PLAYER_HEIGHT;
     const bobOffset = moving ? Math.sin(bob) * 0.045 : 0;
     camera.position.y += ((baseY + bobOffset) - camera.position.y) * Math.min(1, dt * 10);
   }
