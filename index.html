@@ -67,9 +67,13 @@ body.editor #editor-panel{display:block}
 .ed-btn.danger{background:rgba(255,85,102,.16);border:1px solid #ff5566;color:#ff5566}
 .ed-btn.danger:hover{background:#ff5566;color:#fff}
 .ed-btn.mode{flex:1;margin-top:0;position:relative}
+.ed-btn.mode-mv{flex:1;margin-top:0;position:relative}
+.ed-btn.mode-mv.on{background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;border-color:transparent;box-shadow:0 4px 14px rgba(168,85,247,.45)}
 .ed-btn.special-sell{background:linear-gradient(135deg,#ff6b6b,#c0392b);color:#fff;border:none;box-shadow:0 4px 14px rgba(255,85,85,.35)}
 .ed-btn.special-shop{background:linear-gradient(135deg,#00c6ff,#0072ff);color:#fff;border:none;box-shadow:0 4px 14px rgba(0,114,255,.35)}
 .ed-btn.special-spawn{background:linear-gradient(135deg,#38ef7d,#11998e);color:#04220f;border:none;box-shadow:0 4px 14px rgba(56,239,125,.35)}
+.ed-btn.tog-on{background:linear-gradient(135deg,#38ef7d,#11998e);color:#04220f;border:none;box-shadow:0 4px 14px rgba(56,239,125,.35);font-weight:900}
+.ed-btn.tog-off{background:rgba(255,85,102,.16);border:1px solid #ff5566;color:#ff5566}
 .ed-modes{display:flex;gap:5px;margin-bottom:6px}
 .ed-modes .ed-btn.on{background:linear-gradient(135deg,#00c6ff,#0072ff);color:#fff;border-color:transparent}
 .ed-list{margin-top:6px;max-height:170px;overflow-y:auto;border:1px solid rgba(255,255,255,.08);border-radius:9px}
@@ -299,8 +303,22 @@ body.editor #ed-alt-btns{display:flex}
     <button class="ed-btn mode" data-mode="rotate">Rotate</button>
     <button class="ed-btn mode" data-mode="scale">Scale</button>
   </div>
+  <h4 style="margin-top:10px">Object Move Mode</h4>
+  <div class="ed-modes">
+    <button class="ed-btn mode-mv on" data-mvmode="gizmo">↔ Gizmo</button>
+    <button class="ed-btn mode-mv" data-mvmode="drag">✥ Drag</button>
+  </div>
   <button class="ed-btn" id="ed-multiselect-toggle" style="margin-top:6px">☐ Multi-Select: OFF</button>
-  <button class="ed-btn" id="ed-collision-toggle" style="margin-top:6px">🚶 Collision: OFF</button>
+  <button class="ed-btn" id="ed-collision-toggle" style="margin-top:6px">🚶 Collision System: OFF</button>
+
+  <div class="ed-sep"></div>
+  <h4>Global Overrides</h4>
+  <div class="ed-row2">
+    <button class="ed-btn tog-on" id="ed-global-collision">🚶 Coll: ON</button>
+    <button class="ed-btn tog-on" id="ed-global-shadows">☀ Shad: ON</button>
+  </div>
+  <div style="font-size:10px;color:#8b98a8;margin-top:4px">Applies to every object.</div>
+
   <div class="ed-sep"></div>
   <h4>Imported Models (<span id="ed-count">0</span>)</h4>
   <div class="ed-list" id="ed-scene"><div class="ed-empty">Nothing loaded</div></div>
@@ -325,7 +343,14 @@ body.editor #ed-alt-btns{display:flex}
       <button class="ed-btn" id="ed-scale-match" style="margin-top:0;font-size:10.5px;padding:6px">→ Match</button>
     </div>
     <label style="display:flex;align-items:center;gap:6px;margin-top:9px;text-transform:none;letter-spacing:0;cursor:pointer;color:#e6edf3"><input type="checkbox" id="ed-uniform" checked style="width:auto"> Lock inputs</label>
-    <div class="ed-row3" style="margin-top:8px">
+    <div class="ed-sep" style="margin:10px 0 6px"></div>
+    <h4>Per-Object</h4>
+    <div class="ed-row2" style="margin-top:0">
+      <button class="ed-btn tog-on" id="ed-obj-collision">🚶 Coll: ON</button>
+      <button class="ed-btn tog-on" id="ed-obj-shadows">☀ Shad: ON</button>
+    </div>
+    <div class="ed-sep" style="margin:10px 0 6px"></div>
+    <div class="ed-row3" style="margin-top:0">
       <button class="ed-btn" id="ed-focus" style="margin-top:0">Focus</button>
       <button class="ed-btn" id="ed-dup" style="margin-top:0">Dup</button>
       <button class="ed-btn danger" id="ed-del" style="margin-top:0">Del</button>
@@ -606,7 +631,6 @@ let grassMesh = null, sandMesh = null;
     rings.push(row);
   }
 
-  // GRASS: flat top fan
   const grassPos = [];
   const center = new THREE.Vector3(0, TOP_H * S, 0);
   for (let j = 0; j < N; j++) {
@@ -627,7 +651,6 @@ let grassMesh = null, sandMesh = null;
   grassMesh.userData.url = '';
   islandGroup.add(grassMesh);
 
-  // SAND: beach + rim + floor
   const sandPos = [], sandCol = [];
   const sandDry = new THREE.Color(0xf6e6b8), sandWet = new THREE.Color(0xe0c98a), sandDeep = new THREE.Color(0xc0ad78);
   function sandTri(a, b, c) {
@@ -799,7 +822,7 @@ document.addEventListener('mouseup', () => isMouseDown = false);
 let collisionEnabled = false;
 const PLAYER_RADIUS = 0.5;
 const PLAYER_HEIGHT = 1.7;
-const STEP_UP = 0.75;          // max height the player can step up without being teleported
+const STEP_UP = 0.75;
 const RAY_ANGLES = 8;
 const RAY_HEIGHTS = [0.15, 0.85, 1.55];
 
@@ -812,6 +835,7 @@ function getCollidableMeshes() {
   for (const m of editorModels) {
     if (!m.object.visible) continue;
     if (m.specialRole) continue;                 // market / shop / spawn boxes are walk-through
+    if (m.object.userData.noCollision) continue; // per-object collision disabled
     const pid = m.prePlacedId;
     if (pid === 'sky' || pid === 'clouds' || pid === 'water') continue;
     m.object.traverse(o => {
@@ -821,12 +845,6 @@ function getCollidableMeshes() {
   return out;
 }
 
-/**
- * Returns the ground height at (x,z).
- * maxY (optional) = ignore any surface above this Y so a wall/roof never
- * yanks the player to the top of a mesh. The ray starts high and walks down,
- * so the first surface below maxY is used.
- */
 function getGroundHeight(x, z, maxY) {
   const meshes = getCollidableMeshes();
   if (meshes.length === 0) return null;
@@ -854,7 +872,6 @@ function checkHorizontalCollision(pos) {
       _raycaster.far = PLAYER_RADIUS;
       const hits = _raycaster.intersectObjects(meshes, false);
       for (const hit of hits) {
-        // Ignore anything at or below the feet (that's floor / a small step, not a wall)
         if (hit.point.y <= feetY + 0.4) continue;
         return true;
       }
@@ -876,7 +893,17 @@ function handleBtnDown(e) {
   if (editorMode) return;
   if (state === 'minigame') { isHoldingReel = true; return; }
   if (state === 'idle') {
-    if (nearbySpecial) { triggerSpecial(nearbySpecial); return; }
+    // Button-triggered special actions (red/blue box)
+    if (nearbySpecial) {
+      if (nearbySpecial.specialRole === 'sell') { openSell(); return; }
+      if (nearbySpecial.specialRole === 'shop') { openShop(); return; }
+      if (nearbySpecial.specialRole === 'spawn') {
+        const p = nearbySpecial.object.getWorldPosition(new THREE.Vector3());
+        camera.position.set(p.x, p.y + PLAYER_HEIGHT + 1.5, p.z);
+        showAlert('Respawned', '#38ef7d');
+        return;
+      }
+    }
     const gy = islandHeightAt(camera.position.x, camera.position.z);
     if (gy !== null && gy < 2.0) {
       state = 'casting'; actionBtn.innerText = 'WAIT'; actionBtn.style.background = '#555';
@@ -985,6 +1012,11 @@ const editorKeys = { w: false, a: false, s: false, d: false, space: false, c: fa
 let savedCam = { pos: new THREE.Vector3(0, 3, 0), quat: new THREE.Quaternion() };
 let editorGizmoDragging = false;
 
+// Movement mode: 'gizmo' | 'drag'
+let moveMode = 'gizmo';
+// Drag-move state
+let dragState = null;
+
 editorControl = new THREE.TransformControls(camera, renderer.domElement);
 editorControl.setSize(0.85);
 editorControl.visible = false;
@@ -1025,12 +1057,11 @@ editorControl.addEventListener('mouseDown', () => {
 editorControl.addEventListener('mouseUp', () => { setTimeout(() => { editorGizmoDragging = false; dragSnapshot = null; }, 0); saveEditorScene(true); });
 
 /* =====================================================================
-   LOCAL ASSET CACHE — stores fetched .glb/.gltf/.bin/textures/models as
-   base64 data-URLs in localStorage so a reload doesn't re-download them.
+   LOCAL ASSET CACHE
    ===================================================================== */
 const ASSET_CACHE_KEY = 'ultimateFishingAssetCacheV1';
 const ASSET_URL_RE = /\.(glb|gltf|bin|png|jpe?g|webp|gif|bmp|tga|dds|ktx2|mtl|obj|fbx|hdr)(\?.*)?$/i;
-const MAX_CACHE_ENTRY = 8 * 1024 * 1024;   // .bin files can be big
+const MAX_CACHE_ENTRY = 8 * 1024 * 1024;
 let assetCache = {};
 try { assetCache = JSON.parse(localStorage.getItem(ASSET_CACHE_KEY) || '{}') || {}; } catch (e) { assetCache = {}; }
 let assetCacheDirty = false, assetCacheTimer = null;
@@ -1061,15 +1092,11 @@ function updateCacheInfo() {
   el.textContent = n ? ('Cached: ' + n + ' file(s) · ' + (bytes / 1024).toFixed(0) + ' KB') : 'Cache: empty';
 }
 
-/* ---- Blob-URL layer over the localStorage cache -------------------
-   localStorage stores data: URLs. THREE.FileLoader (used by GLTFLoader
-   for .bin) can be flaky with huge data: URLs, so on this session we
-   re-hydrate each cached entry into a Blob URL — those XHR reliably. */
 const _blobUrlCache = {};
 function _dataUrlToBlobUrl(dataUrl) {
   const comma = dataUrl.indexOf(',');
   if (comma < 0) return null;
-  const meta = dataUrl.substring(5, comma);           // strip "data:"
+  const meta = dataUrl.substring(5, comma);
   const isBase64 = /;base64$/i.test(meta);
   const mime = meta.replace(/;base64$/i, '') || 'application/octet-stream';
   const payload = dataUrl.substring(comma + 1);
@@ -1089,14 +1116,11 @@ function getCachedUrl(originalUrl) {
   if (_blobUrlCache[originalUrl]) return _blobUrlCache[originalUrl];
   const stored = assetCache[originalUrl];
   if (!stored) return null;
-  // Older cache versions already stored a blob: URL — pass through.
   if (/^blob:/i.test(stored)) { _blobUrlCache[originalUrl] = stored; return stored; }
-  // data: URL → Blob URL (session-scoped, so we rebuild each session)
   if (/^data:/i.test(stored)) {
     const b = _dataUrlToBlobUrl(stored);
     if (b) { _blobUrlCache[originalUrl] = b; return b; }
   }
-  // Fallback: absolute URL or anything else — just return it.
   return stored;
 }
 
@@ -1120,7 +1144,7 @@ if (_nativeFetch) {
     if (url && ASSET_URL_RE.test(url) && assetCache[url]) {
       const cachedUrl = getCachedUrl(url);
       if (cachedUrl) {
-        try { return await _nativeFetch(cachedUrl); } catch (e) { /* fall through */ }
+        try { return await _nativeFetch(cachedUrl); } catch (e) { }
       }
     }
     const res = await _nativeFetch(input, init);
@@ -1137,7 +1161,6 @@ if (_nativeFetch) {
     return res;
   };
 }
-// ImageLoader bypasses fetch() (it sets <img>.src) — prefetch + cache those textures too.
 (function hookImageLoader() {
   if (!THREE.ImageLoader || !_nativeFetch) return;
   const orig = THREE.ImageLoader.prototype.load;
@@ -1179,7 +1202,6 @@ async function applySceneState(stateStr) {
   let entries = [];
   try { entries = JSON.parse(stateStr) || []; } catch (e) { entries = []; }
 
-  // Remove everything that isn't a base pre-placed object
   [...editorModels].forEach(m => {
     if (m.isPrePlaced) return;
     scene.remove(m.object);
@@ -1196,9 +1218,9 @@ async function applySceneState(stateStr) {
   for (const entry of entries) {
     if (!entry) continue;
     if (entry.isPrimitive) {
-      createPrimitive(entry.primitiveType, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true });
+      createPrimitive(entry.primitiveType, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow });
     } else if (entry.specialRole) {
-      createSpecialBox(entry.specialRole, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true });
+      createSpecialBox(entry.specialRole, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow });
     } else if (entry.isPrePlaced) {
       const found = editorModels.find(m => m.isPrePlaced && m.prePlacedId === entry.prePlacedId);
       if (found) {
@@ -1206,6 +1228,8 @@ async function applySceneState(stateStr) {
         found.object.rotation.set(entry.rotation[0], entry.rotation[1], entry.rotation[2]);
         found.object.scale.fromArray(entry.scale);
         if (entry.color && found.object.material && found.object.material.color) found.object.material.color.set(entry.color);
+        if (entry.noCollision !== undefined) found.object.userData.noCollision = entry.noCollision;
+        if (entry.noShadow !== undefined) { found.object.userData.noShadow = entry.noShadow; applyShadowState(found.object); }
       }
     } else if (entry.url) {
       promises.push(new Promise(res => restoreModelEntry(entry, () => res())));
@@ -1236,13 +1260,19 @@ function doRedo() {
 $('ed-undo').onclick = doUndo;
 $('ed-redo').onclick = doRedo;
 
+function applyShadowState(obj) {
+  const noShadow = !!obj.userData.noShadow;
+  obj.traverse(o => {
+    if (o.isMesh || o.isLine || o.isPoints) {
+      o.castShadow = !noShadow;
+      o.receiveShadow = !noShadow;
+    }
+  });
+}
+
 function serializeObject(m) {
   const p = m.object.position, r = m.object.rotation, s = m.object.scale;
   const f = n => Math.round(n * 1000) / 1000;
-  // Imported models carry their own material colours (usually tinted by
-  // a texture). Serialising a single colour would then paint every
-  // material in that model the same tint on reload — that's the "turns
-  // brown" bug. So only persist colour for objects we deliberately tint.
   let color = null;
   const tintable = !!(m.isPrimitive || m.isPrePlaced || m.specialRole);
   if (tintable) {
@@ -1254,10 +1284,19 @@ function serializeObject(m) {
       }
     });
   }
-  const base = { name: m.name, isPrimitive: !!m.isPrimitive, isPrePlaced: !!m.isPrePlaced, prePlacedId: m.prePlacedId || null, position: [f(p.x), f(p.y), f(p.z)], rotation: [f(r.x), f(r.y), f(r.z)], scale: [f(s.x), f(s.y), f(s.z)], color: color };
+  const base = {
+    name: m.name, isPrimitive: !!m.isPrimitive, isPrePlaced: !!m.isPrePlaced,
+    prePlacedId: m.prePlacedId || null,
+    position: [f(p.x), f(p.y), f(p.z)],
+    rotation: [f(r.x), f(r.y), f(r.z)],
+    scale: [f(s.x), f(s.y), f(s.z)],
+    color: color,
+    noCollision: !!m.object.userData.noCollision,
+    noShadow: !!m.object.userData.noShadow
+  };
   if (m.specialRole) base.specialRole = m.specialRole;
   if (m.isPrimitive) { base.primitiveType = m.primitiveType; base.primitiveArgs = m.primitiveArgs; }
-  else if (m.isPrePlaced) { /* already saved */ }
+  else if (m.isPrePlaced) { }
   else { base.assetPath = m.assetPath; base.url = m.url; }
   return base;
 }
@@ -1285,14 +1324,14 @@ function restoreModelEntry(entry, onComplete) {
       obj.position.fromArray(entry.position);
       obj.rotation.set(entry.rotation[0], entry.rotation[1], entry.rotation[2]);
       obj.scale.fromArray(entry.scale);
-      // Only apply a stored colour when the entry is a primitive / special
-      // box / pre-placed object — never for imported files, whose materials
-      // should keep their own (texture-driven) colours.
       if (entry.color && !entry.url && !/\.(glb|gltf|obj|fbx)(\?.*)?$/i.test(entry.assetPath || '')) {
         applyColorToObject(obj, entry.color);
       }
       obj.userData.assetPath = entry.assetPath;
       obj.userData.url = entry.url;
+      obj.userData.noCollision = !!entry.noCollision;
+      obj.userData.noShadow = !!entry.noShadow;
+      applyShadowState(obj);
       if (!obj.parent) scene.add(obj);
       editorModels.push({ name: entry.name, assetPath: entry.assetPath, url: entry.url, object: obj, isPrimitive: false });
     } catch (e) {}
@@ -1313,9 +1352,9 @@ async function loadEditorScene() {
     let restoredCount = 0, failedCount = 0;
     for (const entry of saved.models) {
       if (entry.isPrimitive) {
-        try { createPrimitive(entry.primitiveType, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true }); restoredCount++; } catch (e) { failedCount++; }
+        try { createPrimitive(entry.primitiveType, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow }); restoredCount++; } catch (e) { failedCount++; }
       } else if (entry.specialRole) {
-        try { createSpecialBox(entry.specialRole, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true }); restoredCount++; } catch (e) { failedCount++; }
+        try { createSpecialBox(entry.specialRole, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow }); restoredCount++; } catch (e) { failedCount++; }
       } else if (entry.isPrePlaced) {
         const found = editorModels.find(m => m.isPrePlaced && m.prePlacedId === entry.prePlacedId);
         if (found) {
@@ -1323,6 +1362,8 @@ async function loadEditorScene() {
           found.object.rotation.set(entry.rotation[0], entry.rotation[1], entry.rotation[2]);
           found.object.scale.fromArray(entry.scale);
           if (entry.color && found.object.material && found.object.material.color) found.object.material.color.set(entry.color);
+          if (entry.noCollision !== undefined) found.object.userData.noCollision = entry.noCollision;
+          if (entry.noShadow !== undefined) { found.object.userData.noShadow = entry.noShadow; applyShadowState(found.object); }
           restoredCount++;
         }
       } else if (entry.url) {
@@ -1347,7 +1388,7 @@ assetLoadingManager.setURLModifier(url => {
   if (!url) return url;
   if (/^(https?|data|blob):/i.test(url)) {
     const cached = getCachedUrl(url);
-    if (cached) return cached;                        // <-- Blob URL from cache
+    if (cached) return cached;
     if (!restoreInProgress) dbg('info', 'Asset (absolute)', url);
     return url;
   }
@@ -1356,7 +1397,7 @@ assetLoadingManager.setURLModifier(url => {
   try { resolved = new URL(url, currentAssetBaseURL).href; }
   catch (e) { resolved = currentAssetBaseURL + url.replace(/^\.?\/+/, ''); }
   const cached = getCachedUrl(resolved);
-  if (cached) return cached;                          // <-- Blob URL from cache
+  if (cached) return cached;
   tryCacheAssetUrl(resolved);
   if (!restoreInProgress) dbg('info', 'Asset resolving: "' + url + '"', resolved);
   return resolved;
@@ -1491,9 +1532,9 @@ function finalizeModel(obj, name, assetPath, url, withMtl, restoreCb) {
 
 /* ===================== SPECIAL BOXES ===================== */
 const SPECIAL_ROLES = {
-  sell:  { color: 0xff3b3b, hex: '#ff3b3b', label: 'FISH MARKET — Press Action', short: 'Fish Market' },
-  shop:  { color: 0x2b7bff, hex: '#2b7bff', label: 'BAIT SHOP — Press Action',   short: 'Bait Shop'   },
-  spawn: { color: 0x22dd66, hex: '#22dd66', label: 'SPAWN POINT — Press Action',short: 'Spawn Point' }
+  sell:  { color: 0xff3b3b, hex: '#ff3b3b', label: 'FISH MARKET', short: 'Fish Market' },
+  shop:  { color: 0x2b7bff, hex: '#2b7bff', label: 'BAIT SHOP',   short: 'Bait Shop'   },
+  spawn: { color: 0x22dd66, hex: '#22dd66', label: 'SPAWN POINT', short: 'Spawn Point' }
 };
 
 function createSpecialBox(role, opts) {
@@ -1529,22 +1570,15 @@ function createSpecialBox(role, opts) {
   mesh.userData.primitiveType = 'specialBox';
   mesh.userData.assetPath = 'special:' + role;
   mesh.userData.url = '';
+  mesh.userData.noCollision = !!opts.noCollision;
+  mesh.userData.noShadow = !!opts.noShadow;
+  applyShadowState(mesh);
   scene.add(mesh);
   editorModels.push({ name, assetPath: 'special:' + role, url: '', object: mesh, isPrimitive: false, specialRole: role });
   if (!opts.silent) { refreshEditorSceneList(); editorSelect(mesh); editorToast('Added ' + def.short); saveEditorScene(true); }
 }
 ['sell', 'shop', 'spawn'].forEach(r => { const b = $('ed-special-' + r); if (b) b.onclick = () => createSpecialBox(r); });
 
-function triggerSpecial(m) {
-  if (!m || !m.specialRole) return;
-  if (m.specialRole === 'sell') openSell();
-  else if (m.specialRole === 'shop') openShop();
-  else if (m.specialRole === 'spawn') {
-    const p = m.object.getWorldPosition(new THREE.Vector3());
-    camera.position.set(p.x, p.y + PLAYER_HEIGHT + 1.5, p.z);
-    showAlert('Spawn point set', '#38ef7d');
-  }
-}
 function applySpawnPoint() {
   let sp = null;
   for (const m of editorModels) { if (m.specialRole === 'spawn' && m.object && m.object.parent) { sp = m; break; } }
@@ -1553,7 +1587,7 @@ function applySpawnPoint() {
   camera.position.set(p.x, p.y + PLAYER_HEIGHT + 2, p.z);
 }
 function ensureDefaultSpawnPoint() {
-  if (editorModels.some(m => m.specialRole === 'spawn')) return;   // already have one
+  if (editorModels.some(m => m.specialRole === 'spawn')) return;
   const gy = (typeof islandHeightAt === 'function' ? islandHeightAt(0, 0) : null);
   const y = (gy != null ? gy : ISLAND_TOP_H * ISLAND_SCALE) + 1;
   createSpecialBox('spawn', {
@@ -1586,19 +1620,20 @@ function setBoxOpacity(obj, opacity) {
 function updateSpecialBoxVisuals(inEditor) {
   editorModels.forEach(m => {
     if (!m.specialRole) return;
-    if (m.object.userData.userHidden) {           // user toggled it off
-      m.object.visible = false;
-      return;
-    }
+    if (m.object.userData.userHidden) { m.object.visible = false; return; }
+    const isSelected = editorSelection.indexOf(m.object) >= 0;
     if (inEditor) {
-      m.object.visible = true;
-      const isSelected = editorSelection.indexOf(m.object) >= 0;
-      setBoxOpacity(m.object, isSelected ? 1.0 : 0.4);
+      if (m.specialRole === 'sell') {
+        // Red box: only visible when selected in editor
+        m.object.visible = isSelected;
+      } else {
+        m.object.visible = true;
+        setBoxOpacity(m.object, isSelected ? 1.0 : 0.4);
+      }
     } else {
-      // In-game: spawn marker is invisible; market/shop stay solid.
-      if (m.specialRole === 'spawn') m.object.visible = false;
-      else m.object.visible = true;
-      setBoxOpacity(m.object, 1.0);
+      // In game: sell + spawn invisible, bait shop visible
+      if (m.specialRole === 'sell' || m.specialRole === 'spawn') m.object.visible = false;
+      else { m.object.visible = true; setBoxOpacity(m.object, 1.0); }
     }
   });
 }
@@ -1651,6 +1686,9 @@ function createPrimitive(type, opts) {
   if (opts.scale) mesh.scale.fromArray(opts.scale);
   mesh.userData.primitiveType = type; mesh.userData.primitiveArgs = defaults[type];
   mesh.userData.assetPath = 'primitive:' + type; mesh.userData.url = '';
+  mesh.userData.noCollision = !!opts.noCollision;
+  mesh.userData.noShadow = !!opts.noShadow;
+  applyShadowState(mesh);
   scene.add(mesh);
   editorModels.push({ name, assetPath: 'primitive:' + type, url: '', object: mesh, isPrimitive: true, primitiveType: type, primitiveArgs: defaults[type] });
   if (!opts.silent) { refreshEditorSceneList(); editorSelect(mesh); editorToast('Added ' + name); saveEditorScene(true); }
@@ -1758,9 +1796,15 @@ function updateSelectionVisuals() {
   editorBoxes.forEach(b => { scene.remove(b); b.geometry.dispose(); });
   editorBoxes = [];
   if (editorBox) { scene.remove(editorBox); editorBox.geometry.dispose(); editorBox = null; }
-  if (editorSelection.length === 0) { editorControl.detach(); editorControl.visible = false; editorControl.enabled = false; if (editorMode) updateSpecialBoxVisuals(true); return; }
+  const showGizmo = moveMode === 'gizmo';
+  if (editorSelection.length === 0) {
+    editorControl.detach();
+    editorControl.visible = false; editorControl.enabled = false;
+    if (editorMode) updateSpecialBoxVisuals(true);
+    return;
+  }
   editorControl.attach(editorSelected);
-  editorControl.visible = true; editorControl.enabled = true;
+  editorControl.visible = showGizmo; editorControl.enabled = showGizmo;
   editorSelection.forEach(obj => {
     const b = new THREE.BoxHelper(obj, editorSelection.length > 1 ? 0xffb84d : 0x00c6ff);
     b.material.depthTest = false; b.material.transparent = true; b.material.opacity = 0.9;
@@ -1849,6 +1893,17 @@ function syncEditorPropsFromObj() {
   $('ed-px').value = edRound(p.x); $('ed-py').value = edRound(p.y); $('ed-pz').value = edRound(p.z);
   $('ed-rx').value = edRound(r.x / ED_RAD); $('ed-ry').value = edRound(r.y / ED_RAD); $('ed-rz').value = edRound(r.z / ED_RAD);
   $('ed-sx').value = edRound(s.x); $('ed-sy').value = edRound(s.y); $('ed-sz').value = edRound(s.z);
+  updatePerObjButtons();
+}
+function updatePerObjButtons() {
+  const c = $('ed-obj-collision'), s = $('ed-obj-shadows');
+  if (!c || !s) return;
+  const noCol = editorSelected ? !!editorSelected.userData.noCollision : false;
+  const noSh  = editorSelected ? !!editorSelected.userData.noShadow   : false;
+  c.textContent = '🚶 Coll: ' + (noCol ? 'OFF' : 'ON');
+  c.className = 'ed-btn ' + (noCol ? 'tog-off' : 'tog-on');
+  s.textContent = '☀ Shad: ' + (noSh ? 'OFF' : 'ON');
+  s.className = 'ed-btn ' + (noSh ? 'tog-off' : 'tog-on');
 }
 function edBind(id, fn) { const el = $(id); el.addEventListener('input', () => { if (editorSelected) { fn(parseFloat(el.value) || 0); editorSelection.forEach((obj, i) => { if (editorBoxes[i]) editorBoxes[i].setFromObject(obj); }); saveEditorScene(); } }); el.addEventListener('blur', () => { if (editorSelected) syncEditorPropsFromObj(); }); }
 edBind('ed-px', v => editorSelected.position.x = v);
@@ -1886,8 +1941,57 @@ $('ed-del').onclick = () => {
   updateSelectionVisuals(); $('ed-sel-count').textContent = '0';
 };
 document.querySelectorAll('.ed-btn.mode').forEach(btn => { btn.onclick = () => { document.querySelectorAll('.ed-btn.mode').forEach(b => b.classList.remove('on')); btn.classList.add('on'); editorControl.setMode(btn.dataset.mode); }; });
+
+// Movement mode toggle
+document.querySelectorAll('.ed-btn.mode-mv').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.ed-btn.mode-mv').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    moveMode = btn.dataset.mvmode;
+    updateSelectionVisuals();
+    editorToast('Move mode: ' + (moveMode === 'gizmo' ? 'Gizmo' : 'Drag (Ctrl+L)'));
+  };
+});
+
 $('ed-multiselect-toggle').onclick = () => { multiSelectMode = !multiSelectMode; const btn = $('ed-multiselect-toggle'); btn.classList.toggle('on', multiSelectMode); btn.textContent = (multiSelectMode ? '☑' : '☐') + ' Multi-Select: ' + (multiSelectMode ? 'ON' : 'OFF'); editorToast(multiSelectMode ? 'Multi-select ON' : 'Multi-select OFF'); };
-$('ed-collision-toggle').onclick = () => { collisionEnabled = !collisionEnabled; const btn = $('ed-collision-toggle'); btn.classList.toggle('on', collisionEnabled); btn.textContent = '🚶 Collision: ' + (collisionEnabled ? 'ON' : 'OFF'); editorToast(collisionEnabled ? 'Collision ON — mesh-accurate' : 'Collision OFF'); };
+$('ed-collision-toggle').onclick = () => { collisionEnabled = !collisionEnabled; const btn = $('ed-collision-toggle'); btn.classList.toggle('on', collisionEnabled); btn.textContent = '🚶 Collision System: ' + (collisionEnabled ? 'ON' : 'OFF'); editorToast(collisionEnabled ? 'Collision System ON' : 'Collision System OFF'); };
+
+// Global collision / shadows
+let globalShadowsOn = true, globalCollisionOn = true;
+function updateGlobalButtons() {
+  const c = $('ed-global-collision'), s = $('ed-global-shadows');
+  if (c) { c.textContent = '🚶 Coll: ' + (globalCollisionOn ? 'ON' : 'OFF'); c.className = 'ed-btn ' + (globalCollisionOn ? 'tog-on' : 'tog-off'); }
+  if (s) { s.textContent = '☀ Shad: ' + (globalShadowsOn ? 'ON' : 'OFF'); s.className = 'ed-btn ' + (globalShadowsOn ? 'tog-on' : 'tog-off'); }
+}
+$('ed-global-collision').onclick = () => {
+  globalCollisionOn = !globalCollisionOn;
+  editorModels.forEach(m => { m.object.userData.noCollision = !globalCollisionOn; });
+  updateGlobalButtons(); updatePerObjButtons();
+  saveEditorScene(true);
+  editorToast('All objects collision: ' + (globalCollisionOn ? 'ON' : 'OFF'));
+};
+$('ed-global-shadows').onclick = () => {
+  globalShadowsOn = !globalShadowsOn;
+  editorModels.forEach(m => { m.object.userData.noShadow = !globalShadowsOn; applyShadowState(m.object); });
+  updateGlobalButtons(); updatePerObjButtons();
+  saveEditorScene(true);
+  editorToast('All objects shadows: ' + (globalShadowsOn ? 'ON' : 'OFF'));
+};
+
+// Per-object collision / shadows
+$('ed-obj-collision').onclick = () => {
+  if (!editorSelection.length) return;
+  editorSelection.forEach(o => { o.userData.noCollision = !o.userData.noCollision; });
+  updatePerObjButtons(); saveEditorScene(true);
+  editorToast('Object collision: ' + (editorSelection[0].userData.noCollision ? 'OFF' : 'ON'));
+};
+$('ed-obj-shadows').onclick = () => {
+  if (!editorSelection.length) return;
+  editorSelection.forEach(o => { o.userData.noShadow = !o.userData.noShadow; applyShadowState(o); });
+  updatePerObjButtons(); saveEditorScene(true);
+  editorToast('Object shadows: ' + (editorSelection[0].userData.noShadow ? 'OFF' : 'ON'));
+};
+
 $('ed-scan').onclick = () => editorScanRepo(false);
 $('ed-advanced-toggle').onclick = () => { const el = $('ed-advanced'); const open = el.style.display === 'block'; el.style.display = open ? 'none' : 'block'; $('ed-advanced-toggle').textContent = open ? '⚙ Advanced ▾' : '⚙ Advanced ▴'; };
 $('ed-clear-cache').onclick = () => {
@@ -1961,6 +2065,8 @@ $('editor-toggle').onclick = () => {
     editorControl.enabled = true;
     editorToast('Editor ON');
     renderPreSceneList(); renderDebug(); updateCacheInfo();
+    updateGlobalButtons(); updatePerObjButtons();
+    updateSpecialBoxVisuals(true);
     if (!autoScanDone) { autoScanDone = true; editorScanRepo(true); }
     else if (!editorRemoteFiles.length) editorScanRepo(true);
   } else {
@@ -1972,6 +2078,8 @@ $('editor-toggle').onclick = () => {
     edResetJoystick();
     document.body.classList.remove('has-debug');
     $('editor-debug').style.display = 'none';
+    dragState = null;
+    updateSpecialBoxVisuals(false);
     editorToast('Editor OFF');
   }
 };
@@ -2027,11 +2135,75 @@ function updateEditorCamera(dt) {
   if (vert !== 0) camera.position.y += vert * speed;
 }
 const canvasEl = renderer.domElement;
-canvasEl.addEventListener('pointerdown', e => { if (!editorMode) return; editorPointerDown = { x: e.clientX, y: e.clientY }; editorDragged = false; });
-canvasEl.addEventListener('pointermove', e => { if (!editorMode || !editorPointerDown) return; if (Math.hypot(e.clientX - editorPointerDown.x, e.clientY - editorPointerDown.y) > 5) editorDragged = true; });
+
+// Drag-move helpers
+const _dragPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
+const _dragHit = new THREE.Vector3();
+const _dragStartHit = new THREE.Vector3();
+const _dragDelta = new THREE.Vector3();
+
+function setupDragMove(e) {
+  const rect = canvasEl.getBoundingClientRect();
+  editorNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  editorNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  editorRaycaster.setFromCamera(editorNDC, camera);
+  const objs = editorModels.filter(m => m.object.visible).map(m => m.object);
+  const hits = editorRaycaster.intersectObjects(objs, true);
+  if (!hits.length) return false;
+  let obj = hits[0].object;
+  while (obj.parent && !editorModels.some(m => m.object === obj)) obj = obj.parent;
+  if (!editorModels.some(m => m.object === obj)) return false;
+  const additive = multiSelectMode || e.shiftKey || e.ctrlKey || e.metaKey;
+  if (!editorSelection.includes(obj)) editorSelect(obj, additive);
+  if (!editorSelection.length) return false;
+  // Plane at the object's Y
+  const objPos = editorSelected.getWorldPosition(new THREE.Vector3());
+  _dragPlane.set(new THREE.Vector3(0, 1, 0), -objPos.y);
+  if (!editorRaycaster.ray.intersectPlane(_dragPlane, _dragStartHit)) return false;
+  dragState = {
+    startPositions: editorSelection.map(o => o.position.clone())
+  };
+  return true;
+}
+function updateDragMove(e) {
+  if (!dragState) return;
+  const rect = canvasEl.getBoundingClientRect();
+  editorNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  editorNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  editorRaycaster.setFromCamera(editorNDC, camera);
+  if (!editorRaycaster.ray.intersectPlane(_dragPlane, _dragHit)) return;
+  _dragDelta.copy(_dragHit).sub(_dragStartHit);
+  editorSelection.forEach((obj, i) => {
+    obj.position.copy(dragState.startPositions[i]).add(_dragDelta);
+  });
+  editorSelection.forEach((obj, i) => { if (editorBoxes[i]) editorBoxes[i].setFromObject(obj); });
+  syncEditorPropsFromObj();
+}
+
+canvasEl.addEventListener('pointerdown', e => {
+  if (!editorMode) return;
+  editorPointerDown = { x: e.clientX, y: e.clientY };
+  editorDragged = false;
+  if (moveMode === 'drag' && !editorControl.dragging) {
+    if (setupDragMove(e)) editorDragged = true;
+  }
+});
+canvasEl.addEventListener('pointermove', e => {
+  if (!editorMode || !editorPointerDown) return;
+  const dx = e.clientX - editorPointerDown.x;
+  const dy = e.clientY - editorPointerDown.y;
+  if (Math.hypot(dx, dy) > 5) editorDragged = true;
+  if (dragState) { updateDragMove(e); e.preventDefault(); }
+});
 canvasEl.addEventListener('pointerup', e => {
   if (!editorMode) return;
-  if (editorDragged || editorGizmoDragging || editorControl.dragging) { editorPointerDown = null; return; }
+  const wasDragging = !!dragState;
+  dragState = null;
+  if (editorDragged || editorGizmoDragging || editorControl.dragging) {
+    editorPointerDown = null;
+    if (wasDragging) saveEditorScene(true);
+    return;
+  }
   editorPointerDown = null;
   const rect = canvasEl.getBoundingClientRect();
   editorNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -2046,6 +2218,7 @@ canvasEl.addEventListener('pointerup', e => {
     editorSelect(o, additive);
   } else { if (!additive) editorSelect(null); }
 });
+
 $('ed-export').onclick = () => {
   if (!editorModels.length) { editorToast('Scene is empty'); return; }
   const lines = editorModels.map(m => {
@@ -2075,7 +2248,6 @@ setTimeout(() => {
   setTimeout(() => {
     l.style.display = 'none';
     document.getElementById('ui-layer').style.opacity = '1';
-    // Register the base scene BEFORE restoring so grass/sand/island colors & transforms restore properly
     try { editorRegisterPrePlaced(); } catch (e) {}
     loadEditorScene().catch(e => console.warn('[restore] failed', e));
   }, 800);
@@ -2085,6 +2257,7 @@ autoFillRepo();
 applyPreSceneState();
 updateCacheInfo();
 updateHistoryButtons();
+updateGlobalButtons();
 
 const clock = new THREE.Clock();
 const _tip = new THREE.Vector3(), _dir = new THREE.Vector3(), _right = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
@@ -2123,8 +2296,6 @@ function animate() {
       _right.crossVectors(_dir, _up).normalize();
       const attempt = camera.position.clone().addScaledVector(_dir, mY * speed).addScaledVector(_right, mX * speed);
 
-      // Water barrier + mesh collision with sliding.
-      // NOTE: we pass stepCeil so a tall mesh never "teleports" the player on top of it.
       const testGround = getGroundHeight(attempt.x, attempt.z, stepCeil);
       const inWater = testGround === null || testGround < WATER_LEVEL;
 
@@ -2155,23 +2326,44 @@ function animate() {
     camera.position.y += ((baseY + bobOffset) - camera.position.y) * Math.min(1, dt * 10);
   }
 
-  /* ---- special box proximity / prompt ---- */
+  /* ---- special box proximity / button text ---- */
   nearbySpecial = null;
   if (state === 'idle') {
     let best = 4.5;
     for (const m of editorModels) {
       if (!m.specialRole || !m.object.visible || !m.object.parent) continue;
+      if (m.specialRole === 'sell') continue; // red is invisible but still interactive via proximity
+      m.object.getWorldPosition(_spTmp);
+      const d = Math.hypot(_spTmp.x - camera.position.x, _spTmp.z - camera.position.z);
+      if (d < best) { best = d; nearbySpecial = m; }
+    }
+    // Red box proximity even when invisible
+    for (const m of editorModels) {
+      if (m.specialRole !== 'sell') continue;
+      if (!m.object.parent) continue;
       m.object.getWorldPosition(_spTmp);
       const d = Math.hypot(_spTmp.x - camera.position.x, _spTmp.z - camera.position.z);
       if (d < best) { best = d; nearbySpecial = m; }
     }
   }
-  if (nearbySpecial) {
-    msg.style.display = 'block';
-    msg.textContent = SPECIAL_ROLES[nearbySpecial.specialRole].label;
-  } else if (msg.style.display === 'block') {
-    msg.style.display = 'none';
+  // Button text reflects nearby special
+  if (state === 'idle') {
+    if (nearbySpecial && nearbySpecial.specialRole === 'sell') {
+      actionBtn.innerText = 'MARKET';
+      actionBtn.style.background = 'linear-gradient(135deg,#ff6b6b,#c0392b)';
+    } else if (nearbySpecial && nearbySpecial.specialRole === 'shop') {
+      actionBtn.innerText = 'BAIT';
+      actionBtn.style.background = 'linear-gradient(135deg,#00c6ff,#0072ff)';
+    } else if (nearbySpecial && nearbySpecial.specialRole === 'spawn') {
+      actionBtn.innerText = 'SPAWN';
+      actionBtn.style.background = 'linear-gradient(135deg,#38ef7d,#11998e)';
+    } else {
+      actionBtn.innerText = 'CAST';
+      actionBtn.style.background = 'linear-gradient(135deg,#00c6ff,#0072ff)';
+    }
   }
+  // Hide interaction-msg entirely for special boxes
+  msg.style.display = 'none';
 
   const fishing = state === 'casting' || state === 'hooked' || state === 'minigame';
   fishingLine.visible = bobber.visible = fishing;
