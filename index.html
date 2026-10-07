@@ -1,0 +1,2045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Ultimate Fishing + Scene Editor</title>
+<style>
+body,html{margin:0;padding:0;overflow:hidden;background:#bfe3f2;font-family:'Segoe UI',Tahoma,Verdana,sans-serif;user-select:none;touch-action:none}
+#game-canvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
+#loading-screen{position:absolute;inset:0;background:#0a0f19;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;transition:opacity .8s ease}
+#loading-screen h1{margin:0;font-size:36px;text-transform:uppercase;letter-spacing:4px;background:linear-gradient(90deg,#00c6ff,#0072ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+#loading-text{margin:5px 0 30px;color:#888;font-size:16px;letter-spacing:2px}
+.water-wave{animation:wave 2s infinite ease-in-out}.fishing-line-anim{animation:pull 2s infinite ease-in-out}
+@keyframes wave{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes pull{0%,100%{y2:150}50%{y2:130}}
+@keyframes loadbar{0%{width:100%}}
+#ui-layer{position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity 1s}
+#hud{position:absolute;top:20px;left:20px;background:rgba(15,25,35,.6);backdrop-filter:blur(12px);color:#fff;padding:15px 25px;border-radius:16px;border:1px solid rgba(255,255,255,.1);font-weight:bold;font-size:18px;box-shadow:0 10px 30px rgba(0,0,0,.5);pointer-events:auto}
+#crosshair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:6px;height:6px;background:rgba(255,255,255,.9);border-radius:50%;box-shadow:0 0 6px rgba(0,0,0,.8)}
+#interaction-msg{position:absolute;top:25%;left:50%;transform:translateX(-50%);background:linear-gradient(90deg,#FFD700,#FFA500);color:#000;padding:10px 30px;border-radius:25px;font-weight:900;font-size:18px;display:none;box-shadow:0 4px 15px rgba(255,215,0,.6);text-transform:uppercase;letter-spacing:2px}
+#joystick-zone{position:absolute;bottom:30px;left:30px;width:140px;height:140px;background:rgba(255,255,255,.05);border-radius:50%;border:2px solid rgba(255,255,255,.15);backdrop-filter:blur(8px);pointer-events:auto}
+#joystick-knob{position:absolute;top:45px;left:45px;width:50px;height:50px;background:rgba(255,255,255,.9);border-radius:50%;pointer-events:none;box-shadow:0 4px 15px rgba(0,0,0,.5)}
+#action-btn{position:absolute;bottom:40px;right:40px;width:110px;height:110px;background:linear-gradient(135deg,#00c6ff,#0072ff);color:#fff;border-radius:50%;border:4px solid rgba(255,255,255,.8);font-weight:bold;font-size:18px;box-shadow:0 8px 25px rgba(0,114,255,.6);pointer-events:auto;cursor:pointer;transition:transform .1s;text-shadow:1px 1px 2px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;text-align:center}
+#action-btn:active{transform:scale(.9)}
+#minigame-container{position:absolute;top:50%;right:8%;transform:translateY(-50%);width:40px;height:350px;background:rgba(0,0,0,.7);backdrop-filter:blur(5px);border:2px solid #444;border-radius:20px;display:none;pointer-events:none;overflow:hidden;box-shadow:0 0 20px rgba(0,0,0,.8)}
+#catch-bar{position:absolute;bottom:0;left:4px;width:32px;height:80px;background:rgba(0,255,0,.5);border:2px solid lime;border-radius:10px}
+#fish-line{position:absolute;bottom:0;left:0;width:100%;height:8px;background:#ff3333;box-shadow:0 0 10px red;border-radius:4px}
+#progress-container{position:absolute;top:50%;right:calc(8% + 60px);transform:translateY(-50%);width:15px;height:350px;background:rgba(0,0,0,.7);border:1px solid #444;border-radius:10px;display:none;overflow:hidden}
+#progress-fill{position:absolute;bottom:0;left:0;width:100%;height:0;background:linear-gradient(to top,#ff9900,#00ff00);border-radius:8px}
+.modal{position:absolute;top:5%;left:5%;width:90%;height:90%;background:rgba(10,15,25,.95);backdrop-filter:blur(20px);color:#fff;border-radius:20px;border:1px solid rgba(0,198,255,.3);display:none;pointer-events:auto;overflow-y:auto;padding:25px;box-sizing:border-box;z-index:10;box-shadow:0 20px 50px rgba(0,0,0,.9)}
+.modal-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,.1);padding-bottom:15px;margin-bottom:20px}
+.modal-header h2{margin:0;flex-grow:1;text-align:center}
+.close-btn{background:rgba(255,68,68,.2);color:#ff4444;border:1px solid #ff4444;padding:8px 20px;border-radius:8px;font-weight:bold;cursor:pointer;font-size:16px;transition:.2s}
+.close-btn:hover{background:#ff4444;color:#fff}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:15px}
+.card{background:rgba(255,255,255,.03);padding:15px;border-radius:12px;text-align:center;border:1px solid rgba(255,255,255,.05);transition:transform .2s,background .2s;display:flex;flex-direction:column;justify-content:space-between}
+.card:hover{transform:translateY(-3px);background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2)}
+.card button{margin-top:15px;padding:10px 15px;width:100%;background:linear-gradient(135deg,#00c6ff,#0072ff);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:bold}
+.card button.equip-btn{background:linear-gradient(135deg,#11998e,#38ef7d)}
+.card button:disabled{background:#555;color:#aaa;cursor:default}
+#catch-popup{position:absolute;inset:0;display:none;pointer-events:none;z-index:20}
+#caught-header{position:absolute;top:12%;left:50%;transform:translateX(-50%);text-align:center;background:rgba(15,25,35,.85);backdrop-filter:blur(10px);padding:15px 40px;border-radius:20px;border:2px solid rgba(255,255,255,.2);box-shadow:0 10px 30px rgba(0,0,0,.6);pointer-events:auto;width:max-content}
+#caught-button-container{position:absolute;bottom:12%;left:50%;transform:translateX(-50%);pointer-events:auto}
+.rarity-Common{color:#B0BEC5}.rarity-Uncommon{color:#81C784}.rarity-Rare{color:#64B5F6}
+.rarity-ExtraRare{color:#BA68C8;text-shadow:0 0 8px rgba(186,104,200,.5)}.rarity-Epic{color:#F06292;text-shadow:0 0 12px rgba(240,98,146,.6)}
+.rarity-Legendary{color:#FFD54F;text-shadow:0 0 15px rgba(255,213,79,.8)}.rarity-Exotic{color:#0ff;text-shadow:0 0 20px #0ff;font-weight:900;letter-spacing:1px}
+#alert-box{position:absolute;top:15%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.85);backdrop-filter:blur(5px);color:#fff;padding:15px 30px;border-radius:12px;font-size:18px;font-weight:bold;text-align:center;display:none;pointer-events:none;z-index:5;border:1px solid rgba(255,255,255,.2);box-shadow:0 10px 20px rgba(0,0,0,.5)}
+body.editor #joystick-zone,body.editor #action-btn,body.editor #hud,
+body.editor #crosshair,body.editor #interaction-msg{display:none!important}
+#editor-toggle{position:absolute;top:20px;right:20px;z-index:50;background:rgba(15,25,35,.7);backdrop-filter:blur(12px);color:#fff;border:1px solid rgba(255,255,255,.18);padding:10px 18px;border-radius:12px;font-weight:800;letter-spacing:1px;font-size:13px;cursor:pointer;pointer-events:auto;transition:.15s;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+#editor-toggle:hover{background:rgba(0,198,255,.35);border-color:#00c6ff}
+body.editor #editor-toggle{background:linear-gradient(135deg,#00c6ff,#0072ff);border-color:transparent;box-shadow:0 0 22px rgba(0,198,255,.6)}
+#editor-panel{position:absolute;top:70px;right:20px;width:300px;max-height:calc(100vh - 100px);z-index:60;background:rgba(13,18,26,.94);backdrop-filter:blur(16px);border:1px solid rgba(0,198,255,.25);border-radius:16px;padding:14px;box-sizing:border-box;overflow-y:auto;display:none;box-shadow:0 20px 50px rgba(0,0,0,.85);pointer-events:auto;color:#e6edf3;font-size:12px}
+body.editor #editor-panel{display:block}
+#editor-panel h4{margin:0 0 8px;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:#00c6ff}
+#editor-panel label{display:block;font-size:10px;color:#8b98a8;letter-spacing:.6px;margin:9px 0 4px;text-transform:uppercase}
+#editor-panel input{width:100%;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.1);color:#fff;padding:6px 8px;border-radius:7px;font-size:11.5px;font-family:inherit;outline:none;box-sizing:border-box}
+#editor-panel input:focus{border-color:#00c6ff}
+#editor-panel input[type="color"]{width:100%;height:34px;padding:2px;cursor:pointer;border-radius:8px}
+.ed-row2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.ed-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px}
+.ed-btn{width:100%;padding:9px;border-radius:9px;border:none;cursor:pointer;font-weight:700;font-size:11.5px;background:rgba(255,255,255,.08);color:#e6edf3;border:1px solid rgba(255,255,255,.1);transition:.15s;margin-top:8px}
+.ed-btn:hover{background:rgba(255,255,255,.16)}
+.ed-btn.primary{background:linear-gradient(135deg,#11998e,#38ef7d);color:#04220f;border:none;box-shadow:0 6px 18px rgba(56,239,125,.35);font-weight:900}
+.ed-btn.primary:hover{filter:brightness(1.1)}
+.ed-btn.danger{background:rgba(255,85,102,.16);border:1px solid #ff5566;color:#ff5566}
+.ed-btn.danger:hover{background:#ff5566;color:#fff}
+.ed-btn.mode{flex:1;margin-top:0;position:relative}
+.ed-modes{display:flex;gap:5px;margin-bottom:6px}
+.ed-modes .ed-btn.on{background:linear-gradient(135deg,#00c6ff,#0072ff);color:#fff;border-color:transparent}
+.ed-list{margin-top:6px;max-height:170px;overflow-y:auto;border:1px solid rgba(255,255,255,.08);border-radius:9px}
+.ed-item{display:flex;align-items:center;gap:6px;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;font-size:11.5px}
+.ed-item:last-child{border-bottom:none}
+.ed-item:hover{background:rgba(255,255,255,.06)}
+.ed-item.sel{background:rgba(0,198,255,.18)}
+.ed-item .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ed-item .tag{opacity:.5;font-size:9px;margin-left:5px;letter-spacing:.5px}
+.ed-item .mini{background:none;border:none;color:#8b98a8;cursor:pointer;padding:2px 5px;border-radius:5px;font-size:12px}
+.ed-item .mini:hover{background:rgba(255,255,255,.14);color:#fff}
+.ed-item .mini.add{color:#38ef7d;font-weight:900}
+.ed-item.hidden .nm{opacity:.4;text-decoration:line-through}
+.ed-empty{font-size:11px;color:#8b98a8;padding:11px;text-align:center}
+#ed-status{font-size:10.5px;color:#8b98a8;margin-top:7px;min-height:13px}
+#ed-hint{font-size:10.5px;color:#8b98a8;line-height:1.55;margin-top:8px}
+#ed-hint kbd{background:rgba(255,255,255,.1);border-radius:3px;padding:0 4px;font-family:inherit;font-size:9.5px}
+.ed-sep{height:1px;background:rgba(255,255,255,.08);margin:14px 0 10px}
+#ed-advanced-toggle{font-size:10px;padding:6px;opacity:.7;margin-top:6px}
+#ed-advanced{display:none;margin-top:6px;padding:8px;border-radius:9px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.06)}
+#ed-debug-toggle{font-size:10px;padding:6px;opacity:.7;margin-top:6px}
+#ed-multiselect-toggle.on{background:linear-gradient(135deg,#ffb84d,#ff8c00);color:#3a2400;border:none;box-shadow:0 4px 14px rgba(255,184,77,.5);font-weight:900}
+#ed-collision-toggle.on{background:linear-gradient(135deg,#00c6ff,#0072ff);color:#fff;border:none;box-shadow:0 4px 14px rgba(0,198,255,.5);font-weight:900}
+.ed-shapes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px}
+.ed-shape{aspect-ratio:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:9px;color:#e6edf3;font-size:20px;cursor:pointer;transition:.12s;display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
+.ed-shape:hover{background:linear-gradient(135deg,#00c6ff,#0072ff);border-color:transparent;box-shadow:0 4px 14px rgba(0,198,255,.4);transform:translateY(-2px)}
+.ed-shape:active{transform:scale(.9)}
+.ed-axis-x{color:#ff5555}.ed-axis-y{color:#66ff66}.ed-axis-z{color:#66aaff}
+.axis-tag{display:inline-block;font-weight:900;font-size:9px;letter-spacing:.5px;padding:1px 4px;border-radius:4px;margin-right:4px;background:rgba(255,255,255,.06)}
+.axis-tag.x{color:#ff7070}.axis-tag.y{color:#8df08d}.axis-tag.z{color:#8db8ff}
+#save-indicator{position:absolute;bottom:20px;right:20px;z-index:55;background:rgba(15,25,35,.85);color:#38ef7d;padding:8px 16px;border-radius:10px;font-size:11px;font-weight:700;letter-spacing:.5px;border:1px solid rgba(56,239,125,.4);opacity:0;transition:opacity .3s;pointer-events:none;backdrop-filter:blur(10px)}
+#save-indicator.on{opacity:1}
+body.editor #save-indicator{bottom:20px;right:20px}
+#editor-debug{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;display:none;pointer-events:auto;width:min(860px,92vw);max-height:78vh;overflow:auto;background:rgba(5,8,15,.96);border:4px solid #00c6ff;border-radius:18px;padding:22px 26px;box-shadow:0 0 60px rgba(0,198,255,.85),0 0 120px rgba(0,198,255,.4),0 24px 60px rgba(0,0,0,.9);color:#fff;font-family:ui-monospace,Consolas,monospace;font-size:15px;line-height:1.55;backdrop-filter:blur(14px)}
+body.editor.has-debug #editor-debug{display:block}
+#editor-debug h2{margin:0 0 14px;font-size:26px;letter-spacing:1px;font-family:'Segoe UI',Tahoma,sans-serif;text-transform:uppercase;display:flex;align-items:center;justify-content:space-between;gap:14px}
+#editor-debug h2 .status-ok{color:#38ef7d;text-shadow:0 0 14px rgba(56,239,125,.7)}
+#editor-debug h2 .status-fail{color:#ff5566;text-shadow:0 0 14px rgba(255,85,102,.9)}
+#editor-debug h2 .status-warn{color:#ffb84d;text-shadow:0 0 14px rgba(255,184,77,.9)}
+#editor-debug .close-x{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:#fff;cursor:pointer;font-size:15px;padding:5px 14px;border-radius:8px;font-family:inherit;font-weight:700;letter-spacing:0}
+#editor-debug .close-x:hover{background:rgba(255,255,255,.2)}
+#editor-debug .meta{font-size:13px;color:#8b98a8;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.1)}
+#editor-debug .summary{font-size:17px;font-weight:800;padding:12px 16px;border-radius:10px;margin-bottom:16px;letter-spacing:.5px}
+#editor-debug .summary.ok{background:rgba(56,239,125,.14);color:#38ef7d;border:1px solid rgba(56,239,125,.5)}
+#editor-debug .summary.fail{background:rgba(255,85,102,.16);color:#ff5566;border:1px solid rgba(255,85,102,.6)}
+#editor-debug .summary.warn{background:rgba(255,184,77,.14);color:#ffb84d;border:1px solid rgba(255,184,77,.5)}
+#editor-debug .row{display:flex;align-items:flex-start;gap:10px;padding:8px 12px;border-radius:8px;margin-bottom:6px;word-break:break-all;font-size:14px}
+#editor-debug .row.ok{background:rgba(56,239,125,.06);border-left:4px solid #38ef7d}
+#editor-debug .row.fail{background:rgba(255,85,102,.1);border-left:4px solid #ff5566;color:#ffb0b8}
+#editor-debug .row.warn{background:rgba(255,184,77,.08);border-left:4px solid #ffb84d;color:#ffddaa}
+#editor-debug .row.info{background:rgba(0,198,255,.07);border-left:4px solid #00c6ff;color:#a8d8ff}
+#editor-debug .badge{display:inline-block;min-width:62px;padding:2px 10px;border-radius:6px;font-size:12px;font-weight:900;text-align:center;letter-spacing:.5px;flex-shrink:0}
+#editor-debug .row.ok .badge{background:#38ef7d;color:#04220f}
+#editor-debug .row.fail .badge{background:#ff5566;color:#fff}
+#editor-debug .row.warn .badge{background:#ffb84d;color:#3a2400}
+#editor-debug .row.info .badge{background:#00c6ff;color:#001d33}
+#editor-debug .msg{flex:1}
+#editor-debug .url{color:#00c6ff;font-size:12px;opacity:.9;margin-top:2px;text-decoration:underline;word-break:break-all}
+#editor-debug .hint{margin-top:16px;padding:14px 18px;background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.4);border-radius:10px;color:#ffe680;font-size:14px;font-family:'Segoe UI',Tahoma,sans-serif;line-height:1.55}
+#editor-debug .hint b{color:#fff}
+#editor-debug .hint code{background:rgba(0,0,0,.5);padding:2px 7px;border-radius:5px;color:#a8d8ff}
+#blend-modal{position:fixed;inset:0;background:rgba(0,0,0,.82);backdrop-filter:blur(7px);z-index:99999;display:none;align-items:center;justify-content:center;padding:24px}
+#blend-modal.on{display:flex}
+#blend-modal-box{width:min(560px,100%);background:#0f1520;border:2px solid #ffb84d;border-radius:18px;padding:26px 30px;box-shadow:0 30px 80px rgba(0,0,0,.95),0 0 40px rgba(255,184,77,.3);color:#e6edf3;font-family:'Segoe UI',Tahoma,sans-serif}
+#blend-modal-box h2{margin:0 0 10px;font-size:22px;color:#ffb84d;display:flex;align-items:center;gap:10px}
+#blend-modal-box p{margin:0 0 14px;font-size:14px;line-height:1.6;color:#c8d4e0}
+#blend-modal-box ol{margin:0 0 16px 20px;padding:0;font-size:14px;line-height:1.8;color:#e6edf3}
+#blend-modal-box ol li{margin-bottom:6px}
+#blend-modal-box code{background:rgba(0,198,255,.12);color:#a8d8ff;padding:2px 7px;border-radius:5px;font-family:ui-monospace,Consolas,monospace;font-size:13px}
+#blend-modal-box .filename{background:rgba(0,0,0,.4);padding:8px 12px;border-radius:8px;font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#8b98a8;margin-bottom:16px;word-break:break-all}
+#blend-modal-box .actions{display:flex;gap:10px;margin-top:18px}
+#blend-modal-box .actions button{flex:1;padding:12px;border-radius:10px;border:none;cursor:pointer;font-weight:800;font-size:14px;transition:.15s}
+#blend-modal-box .actions .primary{background:linear-gradient(135deg,#ffb84d,#ff8c00);color:#3a2400}
+#blend-modal-box .actions .primary:hover{filter:brightness(1.1)}
+#blend-modal-box .actions .ghost{background:rgba(255,255,255,.08);color:#e6edf3;border:1px solid rgba(255,255,255,.15)}
+#blend-modal-box .actions .ghost:hover{background:rgba(255,255,255,.18)}
+#ed-joystick-zone{position:absolute;bottom:30px;left:30px;width:150px;height:150px;background:rgba(0,198,255,.08);border-radius:50%;border:2px solid rgba(0,198,255,.35);backdrop-filter:blur(8px);pointer-events:auto;display:none;z-index:70;touch-action:none;box-shadow:0 8px 24px rgba(0,0,0,.4),inset 0 0 30px rgba(0,198,255,.08)}
+#ed-joystick-knob{position:absolute;top:50px;left:50px;width:50px;height:50px;background:radial-gradient(circle at 30% 30%,#4fd8ff,#0072ff);border-radius:50%;pointer-events:none;box-shadow:0 6px 18px rgba(0,0,0,.6),0 0 22px rgba(0,198,255,.6);border:2px solid rgba(255,255,255,.5)}
+body.editor #ed-joystick-zone{display:block}
+#ed-alt-btns{position:absolute;bottom:40px;right:40px;display:none;flex-direction:column;gap:14px;z-index:70;pointer-events:auto}
+body.editor #ed-alt-btns{display:flex}
+#ed-alt-btns button{width:74px;height:74px;border-radius:50%;background:rgba(15,25,35,.78);border:2px solid rgba(0,198,255,.4);color:#fff;font-size:26px;font-weight:900;cursor:pointer;backdrop-filter:blur(10px);box-shadow:0 8px 22px rgba(0,0,0,.55),inset 0 0 12px rgba(0,198,255,.15);touch-action:none;user-select:none;display:flex;align-items:center;justify-content:center;transition:.1s;padding:0}
+#ed-alt-btns button:active{background:rgba(0,198,255,.55);border-color:#00c6ff;transform:scale(.94);box-shadow:0 4px 12px rgba(0,198,255,.6)}
+#editor-modal{position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(7px);z-index:200;display:none;align-items:center;justify-content:center;padding:24px}
+#editor-modal.on{display:flex}
+#editor-modal-box{width:min(640px,100%);max-height:88vh;display:flex;flex-direction:column;background:#0f1520;border:1px solid rgba(0,198,255,.3);border-radius:18px;padding:22px;box-shadow:0 30px 80px rgba(0,0,0,.95);color:#e6edf3}
+#editor-modal-box h2{margin:0 0 5px;font-size:18px}
+#editor-modal-box p{margin:0 0 12px;color:#8b98a8;font-size:12px;line-height:1.5}
+#ed-export-text{flex:1;min-height:320px;resize:vertical;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.1);color:#e6edf3;border-radius:10px;padding:12px;font-family:ui-monospace,Consolas,monospace;font-size:12.5px;line-height:1.65;white-space:pre;overflow:auto;outline:none}
+.ed-modal-actions{display:flex;gap:10px;margin-top:14px}
+#ed-toast{position:fixed;top:76px;left:50%;transform:translate(-50%,-12px);z-index:300;background:rgba(0,0,0,.9);border:1px solid rgba(255,255,255,.15);color:#fff;padding:9px 20px;border-radius:10px;font-size:12.5px;font-weight:600;opacity:0;pointer-events:none;transition:.25s}
+#ed-toast.on{opacity:1;transform:translate(-50%,0)}
+@media(max-width:640px){
+  #editor-panel{width:240px;font-size:11.5px;padding:12px}
+  #ed-joystick-zone{width:130px;height:130px;bottom:24px;left:20px}
+  #ed-joystick-knob{width:44px;height:44px;top:43px;left:43px}
+  #ed-alt-btns{bottom:30px;right:24px;gap:12px}
+  #ed-alt-btns button{width:64px;height:64px;font-size:22px}
+  #editor-debug{font-size:13px;padding:16px}
+  #editor-debug h2{font-size:20px}
+}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/MTLLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FontLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/KTX2Loader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fflate@0.7.4/umd/index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
+</head>
+<body>
+
+<div id="loading-screen">
+    <svg viewBox="0 0 200 200" width="180" height="180" style="margin-bottom:20px">
+        <path d="M 0 160 Q 50 140 100 160 T 200 160 L 200 200 L 0 200 Z" fill="#00c6ff" class="water-wave" opacity="0.8"/>
+        <path d="M 0 170 Q 50 150 100 170 T 200 170 L 200 200 L 0 200 Z" fill="#0072ff" class="water-wave" opacity="0.6" style="animation-delay:-1s"/>
+        <line x1="20" y1="180" x2="80" y2="50" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
+        <line x1="80" y1="50" x2="150" y2="150" stroke="#aaa" stroke-width="2" class="fishing-line-anim"/>
+    </svg>
+    <h1>Ultimate Fishing</h1>
+    <p id="loading-text">Made By Vewerty Ploik</p>
+    <div style="width:200px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;overflow:hidden"><div style="width:100%;height:100%;background:#00c6ff;animation:loadbar 3s ease-out forwards"></div></div>
+</div>
+
+<div id="game-container">
+    <canvas id="game-canvas"></canvas>
+    <div id="ui-layer">
+        <div id="hud">💰 $<span id="money">0</span><br>🎣 <span id="current-rod">Classic</span></div>
+        <div id="crosshair"></div>
+        <div id="interaction-msg">Station</div>
+        <div id="alert-box"></div>
+        <div id="minigame-container"><div id="catch-bar"></div><div id="fish-line"></div></div>
+        <div id="progress-container"><div id="progress-fill"></div></div>
+        <div id="catch-popup">
+            <div id="caught-header">
+                <h2 id="caught-fish-name" style="margin:0 0 5px;color:#fff;font-size:32px;letter-spacing:1px">Name</h2>
+                <h3 id="caught-fish-rarity" style="margin:0;font-size:20px;text-transform:uppercase">Rarity</h3>
+            </div>
+            <div id="caught-button-container"><button onclick="closeCatchPopup()" style="padding:15px 50px;font-size:20px;font-weight:bold;background:#fff;color:#000;border:none;border-radius:30px;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.6)">COLLECT</button></div>
+        </div>
+        <div id="joystick-zone"><div id="joystick-knob"></div></div>
+        <button id="action-btn">CAST</button>
+        <div id="shop-modal" class="modal">
+            <div class="modal-header"><h2>Tackle Shop</h2><button class="close-btn" onclick="closeModal('shop-modal')">Close</button></div>
+            <h3 style="color:#00c6ff;margin-bottom:10px">Fishing Rods</h3>
+            <div class="grid" id="rod-shop-grid"></div>
+            <hr style="border-color:rgba(255,255,255,.05);margin:30px 0">
+            <h3 style="color:#00c6ff;margin-bottom:5px">Fish Index (<span id="total-caught-text">0</span>)</h3>
+            <div class="grid" id="fish-index-grid"></div>
+        </div>
+        <div id="sell-modal" class="modal">
+            <div class="modal-header"><h2>Fish Market</h2><button class="close-btn" onclick="closeModal('sell-modal')">Close</button></div>
+            <button onclick="sellAllFish()" style="width:100%;padding:20px;background:linear-gradient(135deg,#11998e,#38ef7d);color:#fff;font-size:22px;border:none;border-radius:12px;font-weight:bold;cursor:pointer;margin-bottom:25px;box-shadow:0 8px 20px rgba(56,239,125,.4)">SELL ALL INVENTORY</button>
+            <div class="grid" id="inventory-grid"></div>
+        </div>
+    </div>
+</div>
+
+<button id="editor-toggle">✎ SCENE EDITOR</button>
+<div id="save-indicator">💾 Saved</div>
+
+<div id="editor-debug">
+  <h2>
+    <span id="ed-debug-title">LOADING…</span>
+    <button class="close-x" id="ed-debug-close">HIDE</button>
+  </h2>
+  <div class="meta" id="ed-debug-meta"></div>
+  <div id="ed-debug-summary"></div>
+  <div id="ed-debug-log"></div>
+  <div class="hint" id="ed-debug-hint"></div>
+</div>
+
+<div id="editor-panel">
+  <h4>Assets Folder</h4>
+  <button class="ed-btn" id="ed-scan">⟳ Rescan assets/</button>
+  <button class="ed-btn" id="ed-debug-toggle">🐞 Show Debug Panel</button>
+  <div id="ed-status">Idle</div>
+  <div class="ed-list" id="ed-remote"><div class="ed-empty">Opening editor will scan automatically</div></div>
+
+  <button class="ed-btn" id="ed-advanced-toggle">⚙ Advanced ▾</button>
+  <div id="ed-advanced">
+    <label>Repo (owner/name)</label>
+    <input id="ed-repo" placeholder="auto-detected from URL">
+    <div class="ed-row2" style="margin-top:6px">
+      <div><label>Branch</label><input id="ed-branch" value="main"></div>
+      <div><label>Folder</label><input id="ed-folder" value="assets"></div>
+    </div>
+    <label style="margin-top:10px">Direct URL / Path</label>
+    <div class="ed-row2">
+      <input id="ed-url" placeholder="assets/island.glb">
+      <button class="ed-btn" id="ed-url-add" style="margin-top:0">Load</button>
+    </div>
+    <div class="ed-sep"></div>
+    <button class="ed-btn danger" id="ed-clear-saved">🗑 Clear Saved Scene</button>
+    <div style="font-size:9.5px;color:#8b98a8;margin-top:5px;line-height:1.4">Wipes the local storage. Refresh to reset the editor to a fresh state.</div>
+  </div>
+
+  <div class="ed-sep"></div>
+  <h4>Base Scene Objects</h4>
+  <button class="ed-btn danger" id="ed-restore-prescene" style="margin-top:0;font-size:10.5px;padding:7px">↺ Restore All</button>
+  <div class="ed-list" id="ed-prescene" style="max-height:200px"><div class="ed-empty">Loading…</div></div>
+
+  <div class="ed-sep"></div>
+  <h4>Add Primitive</h4>
+  <div class="ed-shapes">
+    <button class="ed-shape" data-shape="box" title="Cube / Box">▢</button>
+    <button class="ed-shape" data-shape="sphere" title="Sphere">●</button>
+    <button class="ed-shape" data-shape="cylinder" title="Cylinder">⬮</button>
+    <button class="ed-shape" data-shape="cone" title="Cone">▲</button>
+    <button class="ed-shape" data-shape="torus" title="Torus / Ring">◎</button>
+    <button class="ed-shape" data-shape="plane" title="Plane">▭</button>
+    <button class="ed-shape" data-shape="capsule" title="Capsule">⬭</button>
+    <button class="ed-shape" data-shape="tetra" title="Tetrahedron">◭</button>
+    <button class="ed-shape" data-shape="icosa" title="Icosahedron">❖</button>
+    <button class="ed-shape" data-shape="octa" title="Octahedron">◆</button>
+    <button class="ed-shape" data-shape="dodeca" title="Dodecahedron">⬟</button>
+    <button class="ed-shape" data-shape="torusKnot" title="Torus Knot">❋</button>
+    <button class="ed-shape" data-shape="ring" title="Ring">◯</button>
+    <button class="ed-shape" data-shape="circle" title="Circle">○</button>
+    <button class="ed-shape" data-shape="lathe" title="Lathe (Vase)">⚱</button>
+    <button class="ed-shape" data-shape="star" title="Extruded Star">★</button>
+    <button class="ed-shape" data-shape="tube" title="Tube (Helix)">〰</button>
+    <button class="ed-shape" data-shape="polyhedron" title="Polyhedron">⬡</button>
+    <button class="ed-shape" data-shape="text" title="3D Text — HELLO">T</button>
+  </div>
+
+  <div class="ed-sep"></div>
+  <h4>Transform Mode</h4>
+  <div class="ed-modes">
+    <button class="ed-btn mode on" data-mode="translate">Move</button>
+    <button class="ed-btn mode" data-mode="rotate">Rotate</button>
+    <button class="ed-btn mode" data-mode="scale">Scale</button>
+  </div>
+  <button class="ed-btn" id="ed-multiselect-toggle" style="margin-top:6px">☐ Multi-Select: OFF</button>
+  <button class="ed-btn" id="ed-collision-toggle" style="margin-top:6px">🚶 Collision: OFF</button>
+  <div style="font-size:10px;color:#8b98a8;line-height:1.4;margin-top:4px">
+    Scale mode: drag the <span class="axis-tag x">X</span><span class="axis-tag y">Y</span><span class="axis-tag z">Z</span> boxes at the end of each arm to stretch one axis. Drag the <b>center cube</b> to scale all three at once.
+  </div>
+
+  <div class="ed-sep"></div>
+  <h4>Imported Models (<span id="ed-count">0</span>)</h4>
+  <div class="ed-list" id="ed-scene"><div class="ed-empty">Nothing loaded</div></div>
+
+  <div class="ed-sep"></div>
+  <h4>Selected (<span id="ed-sel-count">0</span>)</h4>
+  <div style="font-size:10px;color:#8b98a8;margin-bottom:6px;line-height:1.4">Shift+click to add · drag gizmo moves all · Ctrl+D to duplicate</div>
+  <div id="ed-no-sel" style="color:#8b98a8;font-size:11px">Click a model to select it</div>
+  <div id="ed-prop-body" style="display:none">
+    <label>Name</label><input id="ed-name">
+    <label>Asset Path</label><input id="ed-path" readonly style="opacity:.65">
+    <label>Color <span style="color:#8b98a8;text-transform:none;letter-spacing:0">(tints all selected)</span></label>
+    <div class="ed-row2">
+      <input type="color" id="ed-color" value="#cccccc">
+      <button class="ed-btn" id="ed-color-random" style="margin-top:0">🎲 Random</button>
+    </div>
+    <label>Position (x, y, z)</label>
+    <div class="ed-row3">
+      <input id="ed-px" type="number" step="0.1" title="X">
+      <input id="ed-py" type="number" step="0.1" title="Y">
+      <input id="ed-pz" type="number" step="0.1" title="Z">
+    </div>
+    <label>Rotation ° (x, y, z)</label>
+    <div class="ed-row3">
+      <input id="ed-rx" type="number" step="5" title="X°">
+      <input id="ed-ry" type="number" step="5" title="Y°">
+      <input id="ed-rz" type="number" step="5" title="Z°">
+    </div>
+    <label>Scale (x, y, z) <span style="color:#8b98a8;text-transform:none;letter-spacing:0">— each axis independent</span></label>
+    <div class="ed-row3">
+      <input id="ed-sx" type="number" step="0.1" title="X scale">
+      <input id="ed-sy" type="number" step="0.1" title="Y scale">
+      <input id="ed-sz" type="number" step="0.1" title="Z scale">
+    </div>
+    <div class="ed-row3" style="margin-top:6px">
+      <button class="ed-btn" id="ed-scale-reset" style="margin-top:0;font-size:10.5px;padding:6px">↺ Reset</button>
+      <button class="ed-btn" id="ed-scale-uniform" style="margin-top:0;font-size:10.5px;padding:6px">▢ 1:1:1</button>
+      <button class="ed-btn" id="ed-scale-match" style="margin-top:0;font-size:10.5px;padding:6px">→ Match</button>
+    </div>
+    <label style="display:flex;align-items:center;gap:6px;margin-top:9px;text-transform:none;letter-spacing:0;cursor:pointer;color:#e6edf3">
+      <input type="checkbox" id="ed-uniform" checked style="width:auto"> Lock inputs (typing X sets Y+Z)
+    </label>
+    <div class="ed-row3" style="margin-top:8px">
+      <button class="ed-btn" id="ed-focus" style="margin-top:0">Focus</button>
+      <button class="ed-btn" id="ed-dup" style="margin-top:0">Dup</button>
+      <button class="ed-btn danger" id="ed-del" style="margin-top:0">Del</button>
+    </div>
+  </div>
+
+  <button class="ed-btn primary" id="ed-export" style="margin-top:14px">GET SCENE DATA</button>
+  <div id="ed-hint">
+    Supports <b>.glb</b> · <b>.gltf</b> (+ <b>.bin</b>) · <b>.obj</b> (+ <b>.mtl</b>) · <b>.fbx</b><br>
+    <b>.blend</b>? Export to .glb in Blender first.<br>
+    <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> gizmo · <kbd>F</kbd> focus · <kbd>Ctrl+D</kbd> dup · <kbd>Del</kbd> remove · <kbd>Esc</kbd> deselect
+  </div>
+</div>
+
+<div id="ed-joystick-zone"><div id="ed-joystick-knob"></div></div>
+<div id="ed-alt-btns">
+  <button id="ed-up" title="Fly up">▲</button>
+  <button id="ed-down" title="Fly down">▼</button>
+</div>
+
+<div id="blend-modal">
+  <div id="blend-modal-box">
+    <h2>⚠ .blend Files Can't Load in a Browser</h2>
+    <div class="filename" id="blend-filename">file.blend</div>
+    <p>Blender's native <code>.blend</code> format is proprietary binary that only Blender itself can read. No web library can open it — this is a hard browser limitation, not a bug.</p>
+    <p><b>To use this model, export it first:</b></p>
+    <ol>
+      <li>Open the <code>.blend</code> in <b>Blender</b></li>
+      <li>Go to <b>File → Export → glTF 2.0 (.glb / .gltf)</b></li>
+      <li>Save it next to the <code>.blend</code> (or anywhere)</li>
+      <li>Upload the exported <code>.glb</code> to your <code>assets/</code> folder</li>
+      <li>Back in the editor: <b>⟳ Rescan</b> → click <b>+</b> on the .glb</li>
+    </ol>
+    <p style="color:#ffb84d">✅ The exported <b>.glb</b> packs geometry AND textures into one file — it'll load with full colors, no missing textures.</p>
+    <div class="actions">
+      <button class="ghost" id="blend-close">Got it</button>
+    </div>
+  </div>
+</div>
+
+<div id="editor-modal">
+  <div id="editor-modal-box">
+    <h2>Scene Data</h2>
+    <p>Paste this to the assistant — it lists every model's name, asset path, position, rotation and scale.</p>
+    <textarea id="ed-export-text" readonly></textarea>
+    <div class="ed-modal-actions">
+      <button class="ed-btn primary" id="ed-copy" style="margin-top:0">Copy to Clipboard</button>
+      <button class="ed-btn" id="ed-close-modal" style="margin-top:0">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="ed-toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const rawFishData = [
+['Anchovy','Common',10,'#c0c0c0','#aaa',0,[0.3,0.4,1.2],0.25],['Herring','Common',12,'#a8b8c8','#555',1,[0.4,0.5,1.1],0.3],
+['Sardine','Common',12,'#8899aa','#fff',3,[0.3,0.4,1.0],0.25],['Minnow','Common',10,'#b8a898','#333',1,[0.3,0.4,1.0],0.2],
+['Carp','Common',15,'#b8860b','#daa520',2,[0.6,0.7,1.2],0.45],['Bluegill','Common',14,'#4682b4','#ff8c00',3,[0.4,0.8,1.0],0.3],
+['Sunfish','Common',14,'#ffd700','#ff4500',2,[0.3,0.9,1.0],0.35],['Crappie','Common',15,'#eee','#333',2,[0.4,0.8,1.1],0.35],
+['Perch','Common',16,'#3cb371','#ff1493',1,[0.5,0.6,1.1],0.35],['Smelt','Common',12,'#e0ffff','#aaa',0,[0.2,0.3,1.2],0.2],
+['Chub','Common',13,'#a9a9a9','#555',0,[0.5,0.5,1.1],0.3],['Shiner','Common',11,'#fffafa','#ffd700',3,[0.3,0.4,1.0],0.2],
+['Dace','Common',11,'#d3d3d3','#000',1,[0.3,0.4,1.1],0.25],['Roach','Common',14,'#c0c0c0','#ff0000',3,[0.4,0.5,1.1],0.3],
+['Cod','Uncommon',35,'#deb887','#8b4513',2,[0.6,0.7,1.2],0.5],['Sea Bass','Uncommon',40,'#2e8b57','#fff',3,[0.5,0.6,1.2],0.55],
+['Flounder','Uncommon',35,'#8b4513','#000',2,[0.9,0.2,1.1],0.45],['Catfish','Uncommon',38,'#556b2f','#000',0,[0.7,0.5,1.3],0.6],
+['Tilapia','Uncommon',32,'#f4a460','#a0522d',1,[0.4,0.7,1.0],0.4],['Halibut','Uncommon',45,'#696969','#fff',2,[1.0,0.2,1.3],0.6],
+['Mackerel','Uncommon',35,'#4169e1','#000',1,[0.4,0.5,1.3],0.45],['Snapper','Uncommon',42,'#ff6347','#fff',3,[0.5,0.7,1.1],0.5],
+['Grouper','Uncommon',48,'#8b0000','#000',2,[0.8,0.8,1.2],0.65],['Mullet','Uncommon',30,'#b0c4de','#fff',0,[0.5,0.5,1.1],0.4],
+['Pollock','Uncommon',34,'#5f9ea0','#fff',3,[0.5,0.6,1.2],0.45],['Haddock','Uncommon',36,'#dcdcdc','#000',2,[0.5,0.6,1.2],0.5],
+['Whiting','Uncommon',30,'#f8f8ff','#ccc',0,[0.4,0.4,1.2],0.35],['Lingcod','Uncommon',45,'#556b2f','#8b4513',2,[0.6,0.5,1.4],0.6],
+['Salmon','Rare',90,'#fa8072','#fff',3,[0.5,0.6,1.3],1.1],['Trout','Rare',85,'#6b8e23','#ffc0cb',2,[0.5,0.6,1.2],1.0],
+['Pike','Rare',100,'#228b22','#adff2f',1,[0.4,0.4,1.6],1.3],['Walleye','Rare',95,'#daa520','#000',2,[0.5,0.5,1.3],1.1],
+['Mahi Mahi','Rare',120,'#00ff00','#00bfff',3,[0.4,0.8,1.2],1.2],['Redfish','Rare',110,'#cd5c5c','#000',2,[0.5,0.6,1.2],1.1],
+['Bonefish','Rare',130,'#c0c0c0','#fff',1,[0.4,0.5,1.4],1.2],['Tarpon','Rare',150,'#c0c0c0','#ccc',0,[0.5,0.6,1.5],1.4],
+['Snook','Rare',115,'#ffd700','#000',1,[0.5,0.6,1.3],1.1],['Permit','Rare',105,'#d3d3d3','#a9a9a9',3,[0.4,0.9,1.1],1.0],
+['Cobia','Rare',140,'#8b4513','#fff',1,[0.6,0.5,1.4],1.3],['Wahoo','Rare',145,'#00008b','#00bfff',1,[0.3,0.4,1.7],1.3],
+['Tuna','ExtraRare',250,'#4682b4','#fff',3,[0.7,0.8,1.3],1.6],['Marlin','ExtraRare',350,'#1e90ff','#fff',1,[0.5,0.6,1.8],2.0],
+['Sailfish','ExtraRare',320,'#0000cd','#8a2be2',1,[0.4,0.5,1.7],1.8],['Swordfish','ExtraRare',380,'#708090','#fff',0,[0.5,0.6,1.8],2.0],
+['Pacific Halibut','ExtraRare',280,'#555','#fff',2,[1.2,0.2,1.4],1.8],['Sturgeon','ExtraRare',400,'#2f4f4f','#fff',2,[0.6,0.5,1.6],2.1],
+['Arapaima','ExtraRare',360,'#8b0000','#ff4500',2,[0.6,0.6,1.7],2.2],['Barracuda','ExtraRare',220,'#c0c0c0','#000',1,[0.3,0.4,1.7],1.5],
+['Roosterfish','ExtraRare',240,'#dcdcdc','#000',1,[0.4,0.7,1.2],1.4],['Trevally','ExtraRare',260,'#a9a9a9','#fff',3,[0.6,0.8,1.2],1.5],
+['Kingfish','ExtraRare',230,'#c0c0c0','#000',1,[0.4,0.5,1.5],1.4],['Amberjack','ExtraRare',270,'#daa520','#fff',3,[0.6,0.7,1.3],1.5],
+['Oarfish','Epic',600,'#c0c0c0','#ff0000',2,[0.2,0.3,2.5],2.5],['Coelacanth','Epic',800,'#191970','#fff',2,[0.7,0.8,1.2],1.8],
+['Golden Mahi','Epic',700,'#ffd700','#ff8c00',3,[0.4,0.8,1.2],1.5],['Giant Trevally','Epic',550,'#696969','#000',0,[0.7,0.9,1.2],1.9],
+['Goliath Grouper','Epic',900,'#8b4513','#5c4033',2,[1.0,1.0,1.3],2.5],['Blue Marlin','Epic',850,'#0000ff','#fff',1,[0.5,0.6,1.8],2.3],
+['Black Marlin','Epic',850,'#000','#fff',1,[0.5,0.6,1.8],2.3],['Tiger Shark','Epic',950,'#708090','#000',1,[0.6,0.6,1.6],2.2],
+['Hammerhead Shark','Epic',1000,'#a9a9a9','#fff',0,[0.8,0.5,1.6],2.2],['Thresher Shark','Epic',950,'#778899','#fff',0,[0.5,0.5,1.8],2.2],
+['Great White','Legendary',2000,'#dcdcdc','#fff',3,[0.7,0.7,1.6],3.0],['Whale Shark','Legendary',2500,'#000080','#fff',2,[0.9,0.8,1.7],3.5],
+['Megamouth','Legendary',1800,'#2f4f4f','#000',0,[0.8,0.8,1.5],2.8],['Goblin Shark','Legendary',1900,'#ffb6c1','#fff',0,[0.5,0.5,1.6],2.5],
+['Giant Squid','Legendary',2200,'#ff4500','#8b0000',3,[0.4,0.4,2.0],3.0],['Colossal Squid','Legendary',2800,'#8b0000','#000',2,[0.5,0.5,2.2],3.2],
+['Baby Kraken','Legendary',3000,'#800080','#4b0082',3,[0.8,0.8,1.5],2.8],['Mini Leviathan','Legendary',2900,'#006400','#adff2f',1,[0.6,0.6,2.0],3.2],
+['Golden Koi','Exotic',5000,'#ffd700','#fff',2,[0.6,0.7,1.2],1.8],['Diamond Sturgeon','Exotic',6000,'#e0ffff','#fff',3,[0.6,0.5,1.6],2.5],
+['Galactic Angler','Exotic',7500,'#000','#ff00ff',2,[0.7,0.8,1.2],2.0],['Void Ray','Exotic',8000,'#111','#4b0082',3,[1.5,0.1,1.5],2.5],
+['Nebula Dragonfish','Exotic',10000,'#ff1493','#00ffff',1,[0.4,0.5,2.2],3.0]
+];
+const rarities = [
+    {id:'Common',name:'Common'},{id:'Uncommon',name:'Uncommon'},{id:'Rare',name:'Rare'},
+    {id:'ExtraRare',name:'Extra Rare'},{id:'Epic',name:'Epic'},{id:'Legendary',name:'Legendary'},{id:'Exotic',name:'Exotic'}
+];
+const fishDatabase = rawFishData.map(f => ({
+    id: f[1], name: f[0], baseVal: f[2], c1: f[3], c2: f[4], pat: f[5], prop: f[6],
+    scale: (f[1] === 'Common' || f[1] === 'Uncommon') ? f[7] * 8.25 : f[7]
+}));
+let fishIndex = {}; fishDatabase.forEach(f => fishIndex[f.name] = 0);
+let inventory = [], money = 0, totalCaughtCount = 0, currentRodIndex = 0;
+const rods = [
+    {id:'classic',name:'Classic',cost:0,minTier:0,maxTier:2,mainColor:0x8B4513,accent:0x222222,owned:true},
+    {id:'magma',name:'Magma',cost:450,minTier:2,maxTier:4,mainColor:0x550000,accent:0xFF4500,owned:false},
+    {id:'forest',name:'Forest',cost:3000,minTier:3,maxTier:5,mainColor:0x2E4D2E,accent:0x8FBC8F,owned:false},
+    {id:'iron',name:'Iron',cost:25000,minTier:4,maxTier:6,mainColor:0x708090,accent:0x00E5FF,owned:false},
+    {id:'golden',name:'Golden',cost:150000,minTier:6,maxTier:6,mainColor:0xFFFF00,accent:0xFFD700,owned:false}
+];
+const SAVE_KEY = 'ultimateFishingSaveLite';
+const PRESCENE_KEY = 'ultimateFishingPreScene';
+const EDITOR_SCENE_KEY = 'ultimateFishingEditorScene';
+function saveGame() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({money, inventory, fishIndex, totalCaughtCount, rodsOwned: rods.map(r => r.owned), currentRodIndex})); } catch (e) {} updateHUD(); }
+function loadGame() {
+    try {
+        const saved = localStorage.getItem(SAVE_KEY); if (!saved) return;
+        const d = JSON.parse(saved);
+        money = d.money || 0; inventory = d.inventory || [];
+        if (d.fishIndex) Object.keys(d.fishIndex).forEach(k => { if (fishIndex[k] !== undefined) fishIndex[k] = d.fishIndex[k]; });
+        totalCaughtCount = d.totalCaughtCount || 0;
+        if (d.rodsOwned) d.rodsOwned.forEach((o, i) => { if (rods[i]) rods[i].owned = o; });
+        currentRodIndex = d.currentRodIndex || 0;
+    } catch (e) { console.error('Corrupted save data.', e); }
+}
+loadGame();
+
+const canvas = document.getElementById('game-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.physicallyCorrectLights = true;
+
+const HORIZON = 0xbfe3f2;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(HORIZON);
+scene.fog = new THREE.Fog(HORIZON, 60, 180);
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1500);
+camera.position.set(0, 3, 0);
+scene.add(camera);
+
+const SUN_DIR = new THREE.Vector3(10, 16, 8).normalize();
+
+// Hemisphere for ambient fill
+scene.add(new THREE.HemisphereLight(0xffffff, 0x9bb7c4, 0.55));
+
+// PBR sun
+const sun = new THREE.DirectionalLight(0xfff2d8, 3.2);
+sun.position.copy(SUN_DIR).multiplyScalar(60);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 1, far: 200 });
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
+scene.add(sun);
+
+// PMREM environment for PBR reflections
+(function buildEnvironment() {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    pmrem.compileEquirectangularShader();
+    const envScene = new THREE.Scene();
+    const envGeo = new THREE.SphereGeometry(10, 32, 16);
+    const envMat = new THREE.ShaderMaterial({
+        side: THREE.BackSide,
+        vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        fragmentShader: `varying vec3 vP;
+        void main(){
+            vec3 d = normalize(vP);
+            float h = d.y;
+            vec3 sky = mix(vec3(0.85,0.92,1.0), vec3(0.35,0.62,0.92), pow(clamp(h,0.0,1.0), 0.55));
+            vec3 ground = mix(vec3(0.85,0.92,1.0), vec3(0.55,0.58,0.42), pow(clamp(-h,0.0,1.0), 0.5));
+            vec3 col = h > 0.0 ? sky : ground;
+            float sunDot = max(dot(d, normalize(vec3(0.6,0.7,0.4))), 0.0);
+            col += vec3(1.0,0.95,0.82) * pow(sunDot, 180.0) * 8.0;
+            gl_FragColor = vec4(col, 1.0);
+        }`
+    });
+    envScene.add(new THREE.Mesh(envGeo, envMat));
+    const rt = pmrem.fromScene(envScene, 0.04);
+    scene.environment = rt.texture;
+    pmrem.dispose();
+})();
+
+// Sky dome (visual)
+const sky = new THREE.Mesh(new THREE.SphereGeometry(800, 32, 16), new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, fog: false,
+    uniforms: { sunDir: { value: SUN_DIR } },
+    vertexShader: 'varying vec3 vD; void main(){ vD=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
+    fragmentShader: `varying vec3 vD; uniform vec3 sunDir;
+    void main(){
+        float h=max(vD.y,0.);
+        vec3 col=mix(vec3(.85,.92,1.),vec3(.35,.62,.92),pow(h,.55));
+        float s=max(dot(normalize(vD),sunDir),0.);
+        col+=vec3(1.,.92,.72)*(pow(s,900.)*3.+pow(s,10.)*.25);
+        gl_FragColor=vec4(col,1.);
+    }`
+}));
+scene.add(sky);
+
+function radialTex(inner, outer) {
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0, inner); g.addColorStop(1, outer); x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c);
+}
+const cloudTex = radialTex('rgba(255,255,255,0.9)', 'rgba(255,255,255,0)');
+const clouds = new THREE.Group();
+for (let i = 0; i < 20; i++) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, transparent: true, opacity: 0.5 + Math.random() * 0.3, fog: false, depthWrite: false }));
+    const a = Math.random() * Math.PI * 2, r = 150 + Math.random() * 350;
+    s.position.set(Math.cos(a) * r, 70 + Math.random() * 60, Math.sin(a) * r);
+    s.scale.set(70 + Math.random() * 90, 22 + Math.random() * 20, 1);
+    clouds.add(s);
+}
+scene.add(clouds);
+
+// ============= PRE-PLACED REGISTRY =============
+const prePlacedGroups = [];
+function registerPreScene(id, name, objects) {
+    prePlacedGroups.push({ id, name, objects: objects.filter(Boolean), visible: true, deleted: false });
+}
+
+// ============= ISLAND TERRAIN =============
+const islandGroup = new THREE.Group();
+islandGroup.scale.setScalar(2.0);
+scene.add(islandGroup);
+
+(function buildIsland() {
+    let s = 7;
+    const rnd = () => (s = (s * 16807) % 2147483647, (s - 1) / 2147483646);
+    const jit = a => (rnd() - 0.5) * 2 * a;
+    const N = 44, RINGS = 8, TOP_H = 0.9, BOTTOM = -1.6;
+    const p1 = rnd() * 6.28, p2 = rnd() * 6.28, p3 = rnd() * 6.28, p4 = rnd() * 6.28;
+    const topR = a => 5.2 * (1 + 0.28 * Math.sin(2 * a + p1) + 0.2 * Math.sin(3 * a + p2) + 0.1 * Math.sin(5 * a + p3));
+    const beachW = a => 6.5 + 2.0 * Math.sin(2 * a + p4) + 1.2 * Math.sin(4 * a + p1);
+    const rings = [];
+    for (let i = 0; i <= RINGS; i++) {
+        const t = i / RINGS, row = [];
+        for (let j = 0; j < N; j++) {
+            let a = (j / N) * Math.PI * 2;
+            if (i > 0) a += jit(0.035);
+            let r = topR(a) + beachW(a) * t;
+            if (i > 0 && i < RINGS) r += jit(0.3);
+            let y = TOP_H + (BOTTOM - TOP_H) * t;
+            if (i > 0 && i < RINGS) y += jit(0.04);
+            row.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
+        }
+        rings.push(row);
+    }
+    const pos = [], col = [];
+    const GREEN = new THREE.Color(0x6cc24a);
+    const sandDry = new THREE.Color(0xf2dfa8);
+    const sandWet = new THREE.Color(0xd9c183);
+    const sandDeep = new THREE.Color(0xb9a874);
+    function tri(a, b, c, color) { for (const v of [a, b, c]) { pos.push(v.x, v.y, v.z); col.push(color.r, color.g, color.b); } }
+    function sandColor(avgY) {
+        const c = avgY > 0.45 ? sandDry : avgY > 0.0 ? sandWet : sandDeep;
+        return c.clone().multiplyScalar(1 + jit(0.04));
+    }
+    const center = new THREE.Vector3(0, TOP_H, 0);
+    for (let j = 0; j < N; j++) tri(center, rings[0][(j + 1) % N], rings[0][j], GREEN);
+    for (let i = 0; i < RINGS; i++) {
+        for (let j = 0; j < N; j++) {
+            const A = rings[i][j], B = rings[i][(j + 1) % N];
+            const C = rings[i + 1][(j + 1) % N], D = rings[i + 1][j];
+            if (rnd() > 0.5) {
+                tri(A, B, C, sandColor((A.y + B.y + C.y) / 3));
+                tri(A, C, D, sandColor((A.y + C.y + D.y) / 3));
+            } else {
+                tri(A, B, D, sandColor((A.y + B.y + D.y) / 3));
+                tri(B, C, D, sandColor((B.y + C.y + D.y) / 3));
+            }
+        }
+    }
+    const floor = new THREE.Vector3(0, BOTTOM, 0);
+    for (let j = 0; j < N; j++) tri(floor, rings[RINGS][j], rings[RINGS][(j + 1) % N], sandDeep);
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    geo.computeVertexNormals();
+    const mat = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        flatShading: true,
+        side: THREE.DoubleSide,
+        roughness: 0.85,
+        metalness: 0.02,
+        envMapIntensity: 0.6
+    });
+    islandGroup.add(new THREE.Mesh(geo, mat));
+})();
+registerPreScene('island', 'Island', [islandGroup]);
+registerPreScene('clouds', 'Clouds', [clouds]);
+registerPreScene('sky', 'Sky Dome', [sky]);
+
+// Pre-scene state save/load
+function applyPreSceneState() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(PRESCENE_KEY) || '{}');
+        prePlacedGroups.forEach(g => {
+            const s = saved[g.id]; if (!s) return;
+            if (s.deleted) { g.deleted = true; g.objects.forEach(o => { if (o.parent) o.parent.remove(o); }); }
+            else { g.visible = s.visible !== false; g.objects.forEach(o => o.visible = g.visible); }
+        });
+    } catch (e) {}
+}
+function savePreSceneState() {
+    const out = {};
+    prePlacedGroups.forEach(g => { out[g.id] = { visible: g.visible, deleted: g.deleted }; });
+    try { localStorage.setItem(PRESCENE_KEY, JSON.stringify(out)); } catch (e) {}
+}
+
+// ============= FISH MESHES =============
+function fishTexture(c1, c2, pat) {
+    const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d');
+    x.fillStyle = c1; x.fillRect(0, 0, 256, 256); x.fillStyle = c2;
+    if (pat === 1) for (let i = 0; i < 256; i += 24) x.fillRect(i, 0, 10, 256);
+    else if (pat === 2) for (let i = 0; i < 40; i++) { x.beginPath(); x.arc(Math.random() * 256, Math.random() * 256, 8, 0, 7); x.fill(); }
+    else if (pat === 3) { const g = x.createLinearGradient(0, 0, 0, 256); g.addColorStop(0, c1); g.addColorStop(1, c2); x.fillStyle = g; x.fillRect(0, 0, 256, 256); }
+    return new THREE.CanvasTexture(c);
+}
+const fishBodyGeo = new THREE.SphereGeometry(1, 32, 20), finGeo = new THREE.ConeGeometry(0.5, 1, 3), eyeGeo = new THREE.SphereGeometry(0.1, 12, 12), pupilGeo = new THREE.SphereGeometry(0.055, 8, 8);
+const eyeWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 }), eyeBlack = new THREE.MeshBasicMaterial({ color: 0x000000 });
+
+function create3DFish(d) {
+    const g = new THREE.Group(), [px, py, pz] = d.prop;
+    const mat = new THREE.MeshStandardMaterial({ map: fishTexture(d.c1, d.c2, d.pat), metalness: 0.15, roughness: 0.5, side: THREE.DoubleSide });
+    if (d.id === 'Exotic') { mat.emissive = new THREE.Color(d.c2); mat.emissiveIntensity = 0.3; }
+    const body = new THREE.Mesh(fishBodyGeo, mat); body.scale.set(px, py, pz); g.add(body);
+    const tail = new THREE.Group(); tail.position.z = -pz * 0.85;
+    for (const s of [1, -1]) {
+        const lobe = new THREE.Mesh(finGeo, mat); lobe.scale.set(0.15, Math.max(py, 0.35) * 1.1, 1);
+        lobe.rotation.x = -Math.PI / 2; lobe.position.set(0, s * py * 0.45, -0.35);
+        lobe.rotateX(s * 0.35); tail.add(lobe);
+    }
+    g.add(tail); g.userData.tail = tail;
+    const dorsal = new THREE.Mesh(finGeo, mat); dorsal.scale.set(0.12, py * 1.1, pz * 0.8); dorsal.position.set(0, py * 0.95, -pz * 0.05); dorsal.rotation.x = -0.15; g.add(dorsal);
+    for (const s of [1, -1]) {
+        const pf = new THREE.Mesh(finGeo, mat); pf.scale.set(0.3, 0.35, 0.5); pf.position.set(s * px * 0.85, -py * 0.25, pz * 0.25); pf.rotation.set(0.4, 0, s * 1.3); g.add(pf);
+        const eye = new THREE.Group(); eye.add(new THREE.Mesh(eyeGeo, eyeWhite));
+        const pup = new THREE.Mesh(pupilGeo, eyeBlack); pup.position.x = 0.06 * s; eye.add(pup);
+        eye.scale.setScalar(Math.max(0.8, Math.min(px, py) * 1.6));
+        eye.position.set(s * px * 0.72, py * 0.22, pz * 0.62); g.add(eye);
+    }
+    g.scale.setScalar(d.scale);
+    return g;
+}
+
+// ============= ROD =============
+let currentRodModel = null;
+const rodTipBone = new THREE.Object3D();
+function stdMat(o) { return new THREE.MeshStandardMaterial(o); }
+function buildRodModel() {
+    if (currentRodModel) camera.remove(currentRodModel);
+    const rd = rods[currentRodIndex], grp = new THREE.Group();
+    let poleMat, reelMat;
+    if (rd.id === 'golden') {
+        poleMat = stdMat({ color: rd.mainColor, emissive: rd.mainColor, emissiveIntensity: 0.7, metalness: 1, roughness: 0.2 });
+        reelMat = stdMat({ color: rd.accent, emissive: rd.accent, emissiveIntensity: 0.7, metalness: 0.9, roughness: 0.3 });
+        const light = new THREE.PointLight(rd.mainColor, 1.0, 5); light.position.set(0, 1.5, 0); grp.add(light);
+    } else {
+        poleMat = stdMat({ color: rd.mainColor, metalness: 0.5, roughness: 0.4 });
+        reelMat = stdMat({ color: rd.accent, metalness: 0.85, roughness: 0.3 });
+    }
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.7, 12), stdMat({ color: 0x1b1b1b, roughness: 1 })); grip.position.y = -0.1; grp.add(grip);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.04, 2.9, 10), poleMat); pole.position.y = 1.5; grp.add(pole);
+    const reel = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.14, 20), reelMat); reel.rotation.z = Math.PI / 2; reel.position.set(0.08, 0.3, 0); grp.add(reel);
+    const crank = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.14, 6), reelMat); crank.rotation.x = Math.PI / 2; crank.position.set(0.16, 0.3, 0.07); grp.add(crank);
+    for (let i = 1; i <= 4; i++) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.035 - i * 0.004, 0.005, 6, 12), reelMat);
+        ring.position.set(0, 0.5 + i * 0.5, 0.03); grp.add(ring);
+    }
+    rodTipBone.position.set(0, 2.95, 0); grp.add(rodTipBone);
+    if (rd.id === 'golden') {
+        const lg = new THREE.Group(); lg.name = 'lightningBolts';
+        const bm = new THREE.LineBasicMaterial({ color: 0x88CCFF, transparent: true, opacity: 0.9 });
+        for (let i = 0; i < 4; i++) {
+            const pts = []; for (let j = 0; j < 7; j++) pts.push(new THREE.Vector3((Math.random() - 0.5) * 0.15, j * 0.45, (Math.random() - 0.5) * 0.15));
+            lg.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), bm));
+        }
+        lg.position.y = 0.2; grp.add(lg);
+    }
+    grp.traverse(o => { if (o.isMesh) o.frustumCulled = false; });
+    grp.position.set(0.55, -0.75, -0.8); grp.rotation.set(-Math.PI / 3, 0, -0.1);
+    camera.add(grp); currentRodModel = grp;
+}
+buildRodModel();
+
+// ============= LINE / BOBBER / SPLASH =============
+const LINE_PTS = 24;
+const lineGeo = new THREE.BufferGeometry(); lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(LINE_PTS * 3), 3));
+const fishingLine = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 }));
+fishingLine.frustumCulled = false; fishingLine.userData.target = new THREE.Vector3(0, -0.5, 0); scene.add(fishingLine);
+
+const bobber = new THREE.Group();
+const bTop = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), stdMat({ color: 0xff2a2a, roughness: 0.4 }));
+const bBot = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 12, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), stdMat({ color: 0xffffff, roughness: 0.4 }));
+const bStick = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.3, 6), stdMat({ color: 0xffffff })); bStick.position.y = 0.25;
+bobber.add(bTop, bBot, bStick); bobber.traverse(o => o.castShadow = true); scene.add(bobber);
+
+const ripples = [0, 1].map(() => {
+    const m = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.36, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+    m.rotation.x = -Math.PI / 2; scene.add(m); return m;
+});
+
+const SP_N = 120, spPos = new Float32Array(SP_N * 3), spVel = new Float32Array(SP_N * 3), spLife = new Float32Array(SP_N);
+for (let i = 0; i < SP_N; i++) spPos[i * 3 + 1] = -100;
+const spGeo = new THREE.BufferGeometry(); spGeo.setAttribute('position', new THREE.BufferAttribute(spPos, 3));
+const splashPts = new THREE.Points(spGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.22, map: radialTex('rgba(255,255,255,1)', 'rgba(255,255,255,0)'), transparent: true, depthWrite: false, opacity: 0.9 }));
+splashPts.frustumCulled = false; scene.add(splashPts);
+let spCursor = 0;
+function splash(p, n) {
+    for (let k = 0; k < n; k++) {
+        const i = spCursor++ % SP_N, a = Math.random() * 6.28, s = 0.5 + Math.random() * 1.8;
+        spPos.set([p.x, p.y, p.z], i * 3); spVel.set([Math.cos(a) * s, 3 + Math.random() * 3, Math.sin(a) * s], i * 3); spLife[i] = 1;
+    }
+}
+
+// ============= CONTROLS =============
+let moveVector = { x: 0, y: 0 }, cameraAngles = { yaw: 0, pitch: 0 };
+let isDragging = false, prevTouch = { x: 0, y: 0 }, joyId = null;
+const joyZone = document.getElementById('joystick-zone'), joyKnob = document.getElementById('joystick-knob');
+joyZone.addEventListener('touchstart', e => { if (joyId === null) { joyId = e.changedTouches[0].identifier; updateJoy(e.changedTouches[0]); } });
+joyZone.addEventListener('touchmove', e => { for (let t of e.changedTouches) if (t.identifier === joyId) { updateJoy(t); e.preventDefault(); } }, { passive: false });
+const endJoy = e => { for (let t of e.changedTouches) if (t.identifier === joyId) { joyId = null; joyKnob.style.transform = 'translate(0px,0px)'; moveVector = { x: 0, y: 0 }; } };
+joyZone.addEventListener('touchend', endJoy); joyZone.addEventListener('touchcancel', endJoy);
+function updateJoy(t) {
+    const r = joyZone.getBoundingClientRect();
+    let dx = t.clientX - (r.left + r.width / 2), dy = t.clientY - (r.top + r.height / 2);
+    const dist = Math.hypot(dx, dy), max = r.width / 2;
+    if (dist > max) { dx = dx / dist * max; dy = dy / dist * max; }
+    joyKnob.style.transform = `translate(${dx}px,${dy}px)`; moveVector.x = dx / max; moveVector.y = dy / max;
+}
+function doCameraLook(dx, dy) {
+    cameraAngles.yaw -= dx * 0.005; cameraAngles.pitch -= dy * 0.005;
+    cameraAngles.pitch = Math.max(-Math.PI / 2.1, Math.min(Math.PI / 2.1, cameraAngles.pitch));
+    camera.quaternion.setFromEuler(new THREE.Euler(cameraAngles.pitch, cameraAngles.yaw, 0, 'YXZ'));
+}
+document.addEventListener('touchstart', e => {
+    if (e.target.id === 'game-canvas' && (editorMode || e.touches[0].clientX > window.innerWidth / 2)) {
+        isDragging = true; prevTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+});
+document.addEventListener('touchmove', e => { if (isDragging && e.target.id === 'game-canvas') { doCameraLook(e.touches[0].clientX - prevTouch.x, e.touches[0].clientY - prevTouch.y); prevTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY }; } }, { passive: false });
+document.addEventListener('touchend', () => isDragging = false);
+
+let keys = { w: false, a: false, s: false, d: false }, isMouseDown = false;
+document.addEventListener('keydown', e => { const k = e.key.toLowerCase(); if (k in keys) keys[k] = true; });
+document.addEventListener('keyup', e => { const k = e.key.toLowerCase(); if (k in keys) keys[k] = false; });
+document.addEventListener('mousedown', e => {
+    if (editorMode && editorControl && editorControl.axis) return;
+    isMouseDown = true; prevTouch = { x: e.clientX, y: e.clientY };
+});
+document.addEventListener('mousemove', e => {
+    if (editorMode && editorControl && editorControl.dragging) return;
+    if (isMouseDown && e.target.id === 'game-canvas') { doCameraLook(e.clientX - prevTouch.x, e.clientY - prevTouch.y); prevTouch = { x: e.clientX, y: e.clientY }; }
+});
+document.addEventListener('mouseup', () => isMouseDown = false);
+
+// ============= COLLISION SYSTEM =============
+let collisionEnabled = false;
+const PLAYER_RADIUS = 0.5;
+const PLAYER_HEIGHT = 2.0;
+
+function getPlayerBox(pos) {
+    return new THREE.Box3(
+        new THREE.Vector3(pos.x - PLAYER_RADIUS, pos.y - PLAYER_HEIGHT + 0.1, pos.z - PLAYER_RADIUS),
+        new THREE.Vector3(pos.x + PLAYER_RADIUS, pos.y + 0.3, pos.z + PLAYER_RADIUS)
+    );
+}
+function collidesWithAssets(pos) {
+    if (!collisionEnabled) return false;
+    const playerBox = getPlayerBox(pos);
+    for (const m of editorModels) {
+        if (!m.object.visible) continue;
+        const b = new THREE.Box3().setFromObject(m.object);
+        if (b.intersectsBox(playerBox)) return true;
+    }
+    return false;
+}
+
+// ============= GAME STATE =============
+const actionBtn = document.getElementById('action-btn'), msg = document.getElementById('interaction-msg');
+let state = 'idle', hookTimeout = null, targetFish = null;
+let barPos = 0, fishPos = 150, catchProgress = 0, isHoldingReel = false, fishTarget = 150, popupFishMesh = null;
+actionBtn.addEventListener('mousedown', handleBtnDown); actionBtn.addEventListener('touchstart', handleBtnDown);
+actionBtn.addEventListener('mouseup', handleBtnUp); actionBtn.addEventListener('touchend', handleBtnUp);
+
+function handleBtnDown(e) {
+    e.preventDefault();
+    if (editorMode) return;
+    if (state === 'minigame') { isHoldingReel = true; return; }
+    if (state === 'idle') {
+        if (Math.abs(camera.position.z) > 8 || Math.abs(camera.position.x) > 8) {
+            state = 'casting'; actionBtn.innerText = 'WAIT'; actionBtn.style.background = '#555';
+            const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
+            fishingLine.userData.target = camera.position.clone().add(dir.multiplyScalar(12)); fishingLine.userData.target.y = 0.5;
+            splash(fishingLine.userData.target, 25);
+            hookTimeout = setTimeout(() => {
+                state = 'hooked'; actionBtn.innerText = 'HOOK!'; actionBtn.style.background = '#ff3333';
+                splash(fishingLine.userData.target, 30); showAlert('FISH ON!', 'white');
+            }, Math.random() * 3000 + 1500);
+        } else showAlert('Get closer to edge!', '#ff4444');
+    } else if (state === 'hooked') startMinigame();
+    else if (state === 'casting') { clearTimeout(hookTimeout); resetAction(); }
+}
+function handleBtnUp(e) { e.preventDefault(); if (state === 'minigame') isHoldingReel = false; }
+
+function startMinigame() {
+    state = 'minigame'; actionBtn.innerText = 'HOLD REEL'; actionBtn.style.background = 'orange';
+    document.getElementById('minigame-container').style.display = 'block';
+    document.getElementById('progress-container').style.display = 'block';
+    const rod = rods[currentRodIndex];
+    let tier = Math.floor(rod.minTier + Math.pow(Math.random(), 2.5) * ((rod.maxTier - rod.minTier) + 0.99));
+    tier = Math.min(tier, rod.maxTier);
+    const pool = fishDatabase.filter(f => f.id === rarities[tier].id);
+    targetFish = pool[Math.floor(Math.random() * pool.length)];
+    barPos = 0; fishPos = 150; catchProgress = 0;
+}
+function catchFish() {
+    state = 'popup';
+    document.getElementById('minigame-container').style.display = 'none';
+    document.getElementById('progress-container').style.display = 'none';
+    splash(fishingLine.userData.target, 50);
+    const value = Math.floor(targetFish.baseVal * (0.8 + Math.random() * 0.4));
+    inventory.push({ ...targetFish, value });
+    if (fishIndex[targetFish.name] === 0) totalCaughtCount++;
+    fishIndex[targetFish.name]++; saveGame();
+    const n = document.getElementById('caught-fish-name'); n.innerText = targetFish.name; n.className = `rarity-${targetFish.id}`;
+    const r = document.getElementById('caught-fish-rarity'); r.innerText = rarities.find(x => x.id === targetFish.id).name; r.className = `rarity-${targetFish.id}`;
+    document.getElementById('catch-popup').style.display = 'block';
+    popupFishMesh = create3DFish(targetFish);
+    const maxProp = Math.max(...targetFish.prop) * targetFish.scale;
+    popupFishMesh.scale.setScalar(1.0 / maxProp);
+    popupFishMesh.position.set(0, 0, -5.0);
+    camera.add(popupFishMesh);
+}
+window.closeCatchPopup = function () {
+    document.getElementById('catch-popup').style.display = 'none';
+    if (popupFishMesh) { camera.remove(popupFishMesh); popupFishMesh = null; }
+    resetAction();
+};
+function resetAction() {
+    state = 'idle'; actionBtn.innerText = 'CAST'; actionBtn.style.background = 'linear-gradient(135deg,#00c6ff,#0072ff)';
+    document.getElementById('minigame-container').style.display = 'none';
+    document.getElementById('progress-container').style.display = 'none';
+    updateHUD();
+}
+function updateHUD() {
+    document.getElementById('money').innerText = money.toLocaleString();
+    document.getElementById('current-rod').innerText = rods[currentRodIndex].name;
+}
+function showAlert(text, color) {
+    const b = document.getElementById('alert-box'); b.innerText = text; b.style.borderColor = color; b.style.display = 'block';
+    setTimeout(() => b.style.display = 'none', 2000);
+}
+function openModal(id) { document.getElementById(id).style.display = 'block'; }
+window.closeModal = function (id) { document.getElementById(id).style.display = 'none'; };
+window.buyRod = function (i, cost) {
+    if (money >= cost) { money -= cost; rods[i].owned = true; saveGame(); equipRod(i); showAlert('Purchased!', '#38ef7d'); }
+    else showAlert('Not enough money!', '#ff4444');
+};
+window.equipRod = function (i) { currentRodIndex = i; buildRodModel(); saveGame(); openShop(); };
+function openShop() {
+    openModal('shop-modal');
+    document.getElementById('total-caught-text').innerText = `${totalCaughtCount}/${fishDatabase.length}`;
+    const sg = document.getElementById('rod-shop-grid'); sg.innerHTML = '';
+    rods.forEach((r, i) => {
+        const label = r.id === 'golden' ? 'Exotic Only' : `Max: ${rarities[r.maxTier].name}`;
+        sg.innerHTML += `<div class="card"><h4 style="margin:5px 0;color:${r.id === 'golden' ? '#FFD700' : 'white'}">${r.name} Rod</h4><p style="font-size:12px;color:#aaa;margin:5px 0">${label}</p>${currentRodIndex === i ? '<button disabled>Equipped</button>' : r.owned ? `<button class="equip-btn" onclick="equipRod(${i})">Equip</button>` : `<button onclick="buyRod(${i},${r.cost})">Buy ($${r.cost.toLocaleString()})</button>`}</div>`;
+    });
+    const ig = document.getElementById('fish-index-grid'); ig.innerHTML = '';
+    fishDatabase.forEach(f => {
+        const c = fishIndex[f.name];
+        ig.innerHTML += `<div class="card ${c > 0 ? `rarity-${f.id}` : ''}" style="opacity:${c > 0 ? 1 : 0.3}"><strong style="font-size:16px">${c > 0 ? f.name : '???'}</strong><br><span style="color:white;font-size:12px">Caught: ${c}</span></div>`;
+    });
+}
+function openSell() {
+    openModal('sell-modal');
+    const g = document.getElementById('inventory-grid'); g.innerHTML = '';
+    if (!inventory.length) { g.innerHTML = "<p style='color:#888;grid-column:1/-1;text-align:center'>Inventory empty.</p>"; return; }
+    inventory.forEach(f => { g.innerHTML += `<div class="card rarity-${f.id}"><strong>${f.name}</strong><br><span style="color:#38ef7d">$${f.value}</span></div>`; });
+}
+window.sellAllFish = function () {
+    if (!inventory.length) return;
+    const earned = inventory.reduce((s, f) => s + f.value, 0);
+    money += earned; inventory = []; saveGame(); openSell(); showAlert(`Sold for $${earned.toLocaleString()}!`, '#38ef7d');
+};
+
+// ============= DEBUG PANEL =============
+const debugState = { visible: false, modelName: '', events: [], texturesOk: 0, texturesFail: 0, meshes: 0, materials: 0 };
+function dbgReset(name) { debugState.modelName = name || ''; debugState.events = []; debugState.texturesOk = 0; debugState.texturesFail = 0; debugState.meshes = 0; debugState.materials = 0; renderDebug(); }
+function dbg(type, m, url) { const badges = { ok: 'OK', fail: 'FAIL', warn: 'WARN', info: 'INFO' }; debugState.events.push({ type, badge: badges[type] || type, msg: m, url: url || '' }); renderDebug(); }
+function renderDebug() {
+    const panel = $('editor-debug');
+    if (!debugState.visible || !editorMode) { panel.style.display = 'none'; return; }
+    panel.style.display = 'block';
+    const title = $('ed-debug-title'), meta = $('ed-debug-meta'), summary = $('ed-debug-summary'), log = $('ed-debug-log'), hint = $('ed-debug-hint');
+    const failCount = debugState.events.filter(e => e.type === 'fail').length;
+    const warnCount = debugState.events.filter(e => e.type === 'warn').length;
+    let titleText, titleClass;
+    if (failCount > 0) { titleText = '❌ ' + failCount + ' PROBLEM' + (failCount > 1 ? 'S' : ''); titleClass = 'status-fail'; }
+    else if (warnCount > 0) { titleText = '⚠ ' + warnCount + ' WARNING' + (warnCount > 1 ? 'S' : ''); titleClass = 'status-warn'; }
+    else if (debugState.events.length === 0) { titleText = 'LOADING…'; titleClass = 'status-warn'; }
+    else { titleText = '✅ ALL GOOD'; titleClass = 'status-ok'; }
+    title.textContent = titleText; title.className = titleClass;
+    meta.textContent = debugState.modelName ? `Model: ${debugState.modelName} · ${debugState.meshes} mesh(es) · ${debugState.materials} material(s) · ${debugState.texturesOk} texture(s) OK · ${debugState.texturesFail} failed` : 'No model loaded yet';
+    let sumClass, sumText;
+    if (failCount > 0) { sumClass = 'fail'; sumText = 'Your model is showing PINK because ' + failCount + ' texture(s) failed to load.'; }
+    else if (debugState.texturesOk === 0 && debugState.meshes > 0) { sumClass = 'warn'; sumText = 'Model has ' + debugState.meshes + ' mesh(es) but ZERO textures.'; }
+    else if (debugState.texturesOk > 0) { sumClass = 'ok'; sumText = '✅ ' + debugState.texturesOk + ' texture(s) loaded successfully.'; }
+    else { sumClass = 'warn'; sumText = 'Waiting for model…'; }
+    summary.className = 'summary ' + sumClass; summary.textContent = sumText;
+    log.innerHTML = '';
+    debugState.events.slice(-40).forEach(ev => {
+        const row = document.createElement('div'); row.className = 'row ' + ev.type;
+        const badge = document.createElement('span'); badge.className = 'badge'; badge.textContent = ev.badge;
+        const m = document.createElement('span'); m.className = 'msg'; m.textContent = ev.msg;
+        if (ev.url) { const u = document.createElement('div'); u.className = 'url'; u.textContent = ev.url; m.appendChild(u); }
+        row.appendChild(badge); row.appendChild(m); log.appendChild(row);
+    });
+    if (failCount > 0) hint.innerHTML = `<b>Why pink?</b> Three.js shows solid pink when a texture 404s or CORS-blocks. Check the FAIL rows for the URLs.<br><b>Fix:</b> Upload every file from the original zip into <code>assets/</code>, then ⟳ Rescan.`;
+    else if (debugState.meshes > 0 && debugState.texturesOk === 0) hint.innerHTML = `<b>No textures found.</b> The model loaded geometry only.`;
+    else hint.innerHTML = `Everything looks normal.`;
+}
+$('ed-debug-close').onclick = () => { debugState.visible = false; renderDebug(); };
+$('ed-debug-toggle').onclick = () => {
+    debugState.visible = !debugState.visible;
+    $('ed-debug-toggle').textContent = debugState.visible ? '🐞 Hide Debug Panel' : '🐞 Show Debug Panel';
+    renderDebug();
+};
+
+// ============= EDITOR =============
+let editorMode = false;
+let editorControl = null;
+let editorModels = [];
+let editorSelected = null;
+let editorBox = null;
+let editorSelection = [];
+let editorBoxes = [];
+let dragSnapshot = null;
+let restoreInProgress = false;
+let multiSelectMode = false;
+const editorKeys = { w: false, a: false, s: false, d: false, space: false, c: false, shift: false };
+let savedCam = { pos: new THREE.Vector3(0, 3, 0), quat: new THREE.Quaternion() };
+let editorGizmoDragging = false;
+
+editorControl = new THREE.TransformControls(camera, renderer.domElement);
+editorControl.setSize(0.85);
+editorControl.visible = false;
+editorControl.enabled = false;
+scene.add(editorControl);
+
+editorControl.addEventListener('dragging-changed', e => {
+    if (e.value) { editorBoxes.forEach(b => b.visible = false); if (editorBox) editorBox.visible = false; }
+    else { editorBoxes.forEach(b => b.visible = true); if (editorBox) editorBox.visible = true; }
+});
+editorControl.addEventListener('objectChange', () => {
+    if (dragSnapshot) {
+        const dq = editorSelected.quaternion.clone().multiply(dragSnapshot.primary.quat.clone().invert());
+        const ds = new THREE.Vector3(
+            dragSnapshot.primary.scale.x !== 0 ? editorSelected.scale.x / dragSnapshot.primary.scale.x : 1,
+            dragSnapshot.primary.scale.y !== 0 ? editorSelected.scale.y / dragSnapshot.primary.scale.y : 1,
+            dragSnapshot.primary.scale.z !== 0 ? editorSelected.scale.z / dragSnapshot.primary.scale.z : 1
+        );
+        dragSnapshot.others.forEach(item => {
+            const offset = item.pos.clone().sub(dragSnapshot.primary.pos);
+            offset.applyQuaternion(dq);
+            offset.multiply(ds);
+            item.obj.position.copy(editorSelected.position).add(offset);
+            item.obj.quaternion.copy(dq).multiply(item.quat);
+            item.obj.scale.set(item.scale.x * ds.x, item.scale.y * ds.y, item.scale.z * ds.z);
+        });
+    }
+    editorSelection.forEach((obj, i) => { if (editorBoxes[i]) editorBoxes[i].setFromObject(obj); });
+    if (editorBox && editorSelected) editorBox.setFromObject(editorSelected);
+    syncEditorPropsFromObj();
+    saveEditorScene();
+});
+editorControl.addEventListener('mouseDown', () => {
+    editorGizmoDragging = true;
+    if (editorSelection.length > 1 && editorSelected) {
+        dragSnapshot = {
+            primary: { pos: editorSelected.position.clone(), quat: editorSelected.quaternion.clone(), scale: editorSelected.scale.clone() },
+            others: editorSelection.filter(o => o !== editorSelected).map(o => ({ obj: o, pos: o.position.clone(), quat: o.quaternion.clone(), scale: o.scale.clone() }))
+        };
+    } else { dragSnapshot = null; }
+});
+editorControl.addEventListener('mouseUp', () => {
+    setTimeout(() => { editorGizmoDragging = false; dragSnapshot = null; }, 0);
+    saveEditorScene(true);
+});
+
+// ============= PERSISTENCE =============
+let saveTimer = null;
+let savedIndicatorTimer = null;
+function showSavedIndicator() {
+    const el = $('save-indicator'); if (!el) return;
+    el.classList.add('on');
+    clearTimeout(savedIndicatorTimer);
+    savedIndicatorTimer = setTimeout(() => el.classList.remove('on'), 900);
+}
+function serializeObject(m) {
+    const p = m.object.position, r = m.object.rotation, s = m.object.scale;
+    const f = n => Math.round(n * 1000) / 1000;
+    let color = null;
+    m.object.traverse(o => {
+        if (color) return;
+        if (o.isMesh && o.material) {
+            const mm = Array.isArray(o.material) ? o.material[0] : o.material;
+            if (mm && mm.color) color = '#' + mm.color.getHexString();
+        }
+    });
+    const base = { name: m.name, isPrimitive: !!m.isPrimitive, position: [f(p.x), f(p.y), f(p.z)], rotation: [f(r.x), f(r.y), f(r.z)], scale: [f(s.x), f(s.y), f(s.z)], color: color };
+    if (m.isPrimitive) { base.primitiveType = m.primitiveType; base.primitiveArgs = m.primitiveArgs; }
+    else { base.assetPath = m.assetPath; base.url = m.url; }
+    return base;
+}
+function saveEditorScene(immediate) {
+    if (restoreInProgress) return;
+    clearTimeout(saveTimer);
+    const doSave = () => {
+        try {
+            const data = editorModels.map(serializeObject);
+            localStorage.setItem(EDITOR_SCENE_KEY, JSON.stringify({ version: 1, savedAt: Date.now(), models: data }));
+            showSavedIndicator();
+        } catch (e) { console.warn('[editor] save failed', e); }
+    };
+    if (immediate) doSave(); else saveTimer = setTimeout(doSave, 400);
+}
+function applyColorToObject(obj, hex) {
+    obj.traverse(o => {
+        if (!o.isMesh || !o.material) return;
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach(m => { if (m.color) { m.color.set(hex); m.needsUpdate = true; } });
+    });
+}
+function restoreModelEntry(entry, onComplete) {
+    const path = entry.assetPath || '';
+    const ext = path.split('.').pop().toLowerCase();
+    const cb = (obj) => {
+        if (!obj) { onComplete(); return; }
+        try {
+            obj.name = entry.name || obj.name;
+            obj.position.fromArray(entry.position);
+            obj.rotation.set(entry.rotation[0], entry.rotation[1], entry.rotation[2]);
+            obj.scale.fromArray(entry.scale);
+            if (entry.color) applyColorToObject(obj, entry.color);
+            obj.userData.assetPath = entry.assetPath;
+            obj.userData.url = entry.url;
+            if (!obj.parent) scene.add(obj);
+            editorModels.push({ name: entry.name, assetPath: entry.assetPath, url: entry.url, object: obj, isPrimitive: false });
+        } catch (e) { console.warn('[restore] apply failed', e); }
+        onComplete();
+    };
+    try {
+        if (ext === 'obj') editorLoadOBJ(entry.url, entry.name, entry.assetPath, cb);
+        else if (ext === 'fbx') editorLoadFBX(entry.url, entry.name, entry.assetPath, cb);
+        else editorLoadGLB(entry.url, entry.name, entry.assetPath, cb);
+    } catch (e) { onComplete(); }
+}
+async function loadEditorScene() {
+    let saved;
+    try { saved = JSON.parse(localStorage.getItem(EDITOR_SCENE_KEY)); } catch (e) { return; }
+    if (!saved || !saved.models || !saved.models.length) return;
+    restoreInProgress = true;
+    const promises = [];
+    let restoredCount = 0, failedCount = 0;
+    for (const entry of saved.models) {
+        if (entry.isPrimitive) {
+            try { createPrimitive(entry.primitiveType, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true }); restoredCount++; }
+            catch (e) { failedCount++; }
+        } else if (entry.url) {
+            promises.push(new Promise(resolve => { restoreModelEntry(entry, () => { restoredCount++; resolve(); }); }));
+        } else { failedCount++; }
+    }
+    try { await Promise.all(promises); } catch (e) {}
+    restoreInProgress = false;
+    refreshEditorSceneList();
+    if (restoredCount > 0) setTimeout(() => editorToast('Restored ' + restoredCount + ' object' + (restoredCount > 1 ? 's' : '') + ' from last session'), 600);
+}
+$('ed-clear-saved').onclick = () => {
+    if (!confirm('Clear saved editor scene?')) return;
+    try { localStorage.removeItem(EDITOR_SCENE_KEY); } catch (e) {}
+    editorToast('Saved scene cleared');
+};
+
+// ============= LOADING MANAGER =============
+const assetLoadingManager = new THREE.LoadingManager();
+let currentAssetBaseURL = '';
+assetLoadingManager.setURLModifier(url => {
+    if (!url) return url;
+    if (/^(https?|data|blob):/i.test(url)) { if (!restoreInProgress) dbg('info', 'Texture (absolute)', url); return url; }
+    if (!currentAssetBaseURL) return url;
+    let resolved;
+    try { resolved = new URL(url, currentAssetBaseURL).href; } catch (e) { resolved = currentAssetBaseURL + url.replace(/^\.?\/+/, ''); }
+    if (!restoreInProgress) dbg('info', 'Texture resolving: "' + url + '"', resolved);
+    return resolved;
+});
+assetLoadingManager.onError = url => {
+    debugState.texturesFail++;
+    if (!restoreInProgress) dbg('fail', 'Could not load texture (404 / CORS / bad path):', url);
+};
+
+const dracoLoader = new THREE.DRACOLoader();
+dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/draco/');
+let ktx2Loader = null;
+function getKTX2Loader() {
+    if (!ktx2Loader) { ktx2Loader = new THREE.KTX2Loader(); ktx2Loader.setTranscoderPath('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/basis/'); ktx2Loader.detectSupport(renderer); }
+    return ktx2Loader;
+}
+let loadedFont = null;
+const primitiveFontLoader = new THREE.FontLoader();
+primitiveFontLoader.load(
+    'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/fonts/helvetiker_regular.typeface.json',
+    font => { loadedFont = font; },
+    undefined,
+    err => console.warn('[editor] font failed to load:', err)
+);
+function showBlendWarning(filename) { $('blend-filename').textContent = filename; $('blend-modal').classList.add('on'); }
+$('blend-close').onclick = () => $('blend-modal').classList.remove('on');
+
+function editorLoadModel(fileInfo) {
+    const ext = (fileInfo.ext || '').toLowerCase();
+    dbgReset(fileInfo.name);
+    if (ext === 'blend') { dbg('warn', '.blend cannot be loaded in a browser.'); showBlendWarning(fileInfo.name + '.blend'); return; }
+    dbg('info', 'Starting load · ext=' + ext + ' · URL below', fileInfo.url);
+    if (ext === 'obj') return editorLoadOBJ(fileInfo.url, fileInfo.name, fileInfo.path);
+    if (ext === 'fbx') return editorLoadFBX(fileInfo.url, fileInfo.name, fileInfo.path);
+    return editorLoadGLB(fileInfo.url, fileInfo.name, fileInfo.path);
+}
+function editorLoadGLB(url, name, assetPath, restoreCb) {
+    if (!restoreCb) editorToast('Loading ' + name + '…');
+    currentAssetBaseURL = url.substring(0, url.lastIndexOf('/') + 1);
+    if (!restoreCb) dbg('info', 'Asset folder:', currentAssetBaseURL);
+    const loader = new THREE.GLTFLoader(assetLoadingManager);
+    try { loader.setDRACOLoader(dracoLoader); } catch (e) {}
+    try { loader.setKTX2Loader(getKTX2Loader()); } catch (e) {}
+    loader.load(url,
+        gltf => { if (!restoreCb) dbg('ok', 'GLB/GLTF parsed OK'); finalizeModel(gltf.scene, name, assetPath, url, false, restoreCb); },
+        undefined,
+        err => { console.error(err); if (!restoreCb) { dbg('fail', 'GLB parse failed', url); editorToast('Failed to load ' + name); } if (restoreCb) restoreCb(null); }
+    );
+}
+function editorLoadOBJ(url, name, assetPath, restoreCb) {
+    if (!restoreCb) editorToast('Loading OBJ ' + name + '…');
+    const slash = url.lastIndexOf('/');
+    const baseURL = url.substring(0, slash + 1);
+    const objFilename = url.substring(slash + 1);
+    const mtlFilename = objFilename.replace(/\.obj(\?.*)?$/i, '.mtl$1');
+    currentAssetBaseURL = baseURL;
+    if (!restoreCb) { dbg('info', 'Asset folder:', baseURL); dbg('info', 'Looking for MTL:', baseURL + mtlFilename); }
+    const loadPlain = () => {
+        if (!restoreCb) dbg('warn', 'Loading OBJ without MTL');
+        const objLoader = new THREE.OBJLoader(assetLoadingManager);
+        objLoader.setPath(baseURL);
+        objLoader.load(objFilename,
+            obj => { if (!restoreCb) dbg('ok', 'OBJ parsed'); finalizeModel(obj, name, assetPath, url, false, restoreCb); },
+            undefined,
+            err => { console.error(err); if (!restoreCb) { dbg('fail', 'OBJ parse failed', url); editorToast('Failed to load ' + name); } if (restoreCb) restoreCb(null); }
+        );
+    };
+    const mtlLoader = new THREE.MTLLoader(assetLoadingManager);
+    mtlLoader.setPath(baseURL);
+    mtlLoader.load(mtlFilename,
+        mtl => {
+            if (!restoreCb) dbg('ok', 'MTL found');
+            try { mtl.preload(); } catch (e) {}
+            const objLoader = new THREE.OBJLoader(assetLoadingManager);
+            objLoader.setPath(baseURL);
+            objLoader.setMaterials(mtl);
+            objLoader.load(objFilename,
+                obj => { if (!restoreCb) dbg('ok', 'OBJ w/ MTL parsed'); finalizeModel(obj, name, assetPath, url, true, restoreCb); },
+                undefined,
+                err => { console.warn('OBJ w/ MTL failed, retrying plain', err); loadPlain(); }
+            );
+        },
+        undefined,
+        () => { if (!restoreCb) dbg('warn', 'No MTL file found'); loadPlain(); }
+    );
+}
+function editorLoadFBX(url, name, assetPath, restoreCb) {
+    if (!restoreCb) editorToast('Loading FBX ' + name + '…');
+    const slash = url.lastIndexOf('/');
+    currentAssetBaseURL = url.substring(0, slash + 1);
+    if (!restoreCb) dbg('info', 'Asset folder:', currentAssetBaseURL);
+    const loader = new THREE.FBXLoader(assetLoadingManager);
+    loader.load(url,
+        fbx => { if (!restoreCb) dbg('ok', 'FBX parsed OK'); finalizeModel(fbx, name, assetPath, url, false, restoreCb); },
+        undefined,
+        err => { console.error(err); if (!restoreCb) { dbg('fail', 'FBX parse failed', url); editorToast('Failed to load ' + name); } if (restoreCb) restoreCb(null); }
+    );
+}
+function finalizeModel(obj, name, assetPath, url, withMtl, restoreCb) {
+    if (!obj) { if (restoreCb) restoreCb(null); return; }
+    let meshCount = 0, matCount = 0, matWithMapCount = 0;
+    const seenTextures = new Set();
+    const dbgFn = restoreCb ? (() => {}) : dbg;
+    obj.traverse(o => {
+        if (!o.isMesh && !o.isLine && !o.isPoints) return;
+        meshCount++;
+        o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
+        if (o.geometry && o.geometry.attributes && o.geometry.attributes.color) {
+            const m0 = o.material;
+            const mats = Array.isArray(m0) ? m0 : (m0 ? [m0] : []);
+            mats.forEach(m => { m.vertexColors = true; m.needsUpdate = true; });
+        }
+        if (!o.material) return;
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach(m => {
+            matCount++;
+            m.side = THREE.DoubleSide;
+            if (m.map) {
+                matWithMapCount++;
+                const img = m.map.image;
+                const src = (img && img.src) || '(unknown source)';
+                const key = m.map.uuid;
+                if (!seenTextures.has(key)) {
+                    seenTextures.add(key);
+                    if (img && img instanceof HTMLImageElement) {
+                        if (img.complete && img.naturalWidth > 0) { debugState.texturesOk++; dbgFn('ok', 'Texture ' + img.naturalWidth + '×' + img.naturalHeight + ' · "' + (m.name || '') + '"', img.src); }
+                        else {
+                            img.addEventListener('load', () => { debugState.texturesOk++; dbgFn('ok', 'Texture loaded ' + img.naturalWidth + '×' + img.naturalHeight, img.src); if (!restoreCb) renderDebug(); });
+                            img.addEventListener('error', () => { debugState.texturesFail++; dbgFn('fail', 'Texture image failed', img.src); if (!restoreCb) renderDebug(); });
+                            dbgFn('info', 'Texture loading…', src);
+                        }
+                    } else if (img && img.width > 0) { debugState.texturesOk++; dbgFn('ok', 'Texture ' + img.width + '×' + img.height, src); }
+                    else { debugState.texturesFail++; dbgFn('fail', 'Empty/missing texture', src); }
+                }
+                m.map.anisotropy = 8;
+                m.map.encoding = THREE.sRGBEncoding;
+                m.map.needsUpdate = true;
+            } else {
+                dbgFn('warn', 'Material "' + (m.name || '') + '" has NO texture · #' + (m.color ? m.color.getHexString() : '??????'));
+            }
+            if (m.emissiveMap) m.emissiveMap.encoding = THREE.sRGBEncoding;
+            if (m.alphaMap) m.alphaMap.needsUpdate = true;
+            if (m.isMeshPhongMaterial) { m.shininess = 20; if (m.specular && m.specular.isColor) m.specular.setHex(0x111111); }
+            if (m.isMeshStandardMaterial && m.envMapIntensity === undefined) m.envMapIntensity = 0.8;
+            m.visible = true; m.needsUpdate = true;
+        });
+    });
+    debugState.meshes = meshCount; debugState.materials = matCount;
+    if (!restoreCb) {
+        if (meshCount === 0) dbg('fail', 'Model has NO meshes');
+        else if (matWithMapCount === 0) dbg('warn', 'All ' + matCount + ' material(s) have NO textures');
+        else dbg('ok', 'Finalized: ' + meshCount + ' mesh(es), ' + matCount + ' material(s)');
+    }
+    obj.name = name; obj.userData.assetPath = assetPath; obj.userData.url = url;
+    if (restoreCb) { restoreCb(obj); return; }
+    scene.add(obj);
+    const box = new THREE.Box3().setFromObject(obj);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    dbg('info', 'Size: ' + [size.x.toFixed(2), size.y.toFixed(2), size.z.toFixed(2)].join(' × '));
+    if (isFinite(maxDim) && maxDim > 0 && (maxDim > 200 || maxDim < 0.02)) {
+        const factor = 2 / maxDim;
+        obj.scale.multiplyScalar(factor);
+        dbg('warn', 'Auto-scaled ×' + factor.toFixed(3));
+    }
+    const box2 = new THREE.Box3().setFromObject(obj);
+    if (isFinite(box2.min.y)) obj.position.y -= box2.min.y;
+    editorModels.push({ name, assetPath, url, object: obj });
+    refreshEditorSceneList();
+    editorSelect(obj);
+    renderDebug();
+    editorToast('Loaded: ' + name + (withMtl ? ' (MTL)' : ''));
+    saveEditorScene(true);
+    if (debugState.events.some(e => e.type === 'fail') && !debugState.visible) {
+        debugState.visible = true;
+        $('ed-debug-toggle').textContent = '🐞 Hide Debug Panel';
+        renderDebug();
+    }
+}
+
+// ============= PRIMITIVES =============
+const primitiveCounter = {};
+function createPrimitive(type, opts) {
+    opts = opts || {};
+    if (!editorMode && !opts.silent) { editorToast('Open the editor first'); return; }
+    let geo;
+    const defaults = {};
+    switch (type) {
+        case 'box': geo = new THREE.BoxGeometry(1, 1, 1); defaults.box = [1, 1, 1]; break;
+        case 'sphere': geo = new THREE.SphereGeometry(0.5, 32, 20); defaults.sphere = [0.5, 32, 20]; break;
+        case 'cylinder': geo = new THREE.CylinderGeometry(0.4, 0.4, 1, 24); defaults.cylinder = [0.4, 0.4, 1, 24]; break;
+        case 'cone': geo = new THREE.ConeGeometry(0.5, 1, 24); defaults.cone = [0.5, 1, 24]; break;
+        case 'torus': geo = new THREE.TorusGeometry(0.4, 0.15, 16, 40); defaults.torus = [0.4, 0.15, 16, 40]; break;
+        case 'plane': geo = new THREE.PlaneGeometry(2, 2); defaults.plane = [2, 2]; break;
+        case 'capsule': geo = new THREE.CapsuleGeometry(0.3, 0.8, 8, 16); defaults.capsule = [0.3, 0.8, 8, 16]; break;
+        case 'tetra': geo = new THREE.TetrahedronGeometry(0.6); defaults.tetra = [0.6]; break;
+        case 'icosa': geo = new THREE.IcosahedronGeometry(0.6); defaults.icosa = [0.6]; break;
+        case 'octa': geo = new THREE.OctahedronGeometry(0.6); defaults.octa = [0.6]; break;
+        case 'dodeca': geo = new THREE.DodecahedronGeometry(0.6); defaults.dodeca = [0.6]; break;
+        case 'torusKnot': geo = new THREE.TorusKnotGeometry(0.35, 0.12, 64, 12); defaults.torusKnot = [0.35, 0.12, 64, 12]; break;
+        case 'ring': geo = new THREE.RingGeometry(0.2, 0.5, 48); defaults.ring = [0.2, 0.5, 48]; break;
+        case 'circle': geo = new THREE.CircleGeometry(0.5, 48); defaults.circle = [0.5, 48]; break;
+        case 'lathe': {
+            const pts = [];
+            for (let i = 0; i <= 14; i++) { const t = i / 14; pts.push(new THREE.Vector2(0.12 + Math.sin(t * Math.PI) * 0.34, t * 1.2)); }
+            geo = new THREE.LatheGeometry(pts, 32); defaults.lathe = [0.12, 0.34, 1.2]; break;
+        }
+        case 'star': {
+            const shape = new THREE.Shape();
+            const spikes = 5, outer = 0.55, inner = 0.24;
+            for (let i = 0; i < spikes * 2; i++) {
+                const r = (i % 2 === 0) ? outer : inner;
+                const a = (i / (spikes * 2)) * Math.PI * 2 - Math.PI / 2;
+                const x = Math.cos(a) * r, y = Math.sin(a) * r;
+                if (i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
+            }
+            shape.closePath();
+            geo = new THREE.ExtrudeGeometry(shape, { depth: 0.2, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.03, bevelSegments: 2, curveSegments: 8 });
+            geo.center(); defaults.star = [0.55, 0.24, 0.2]; break;
+        }
+        case 'tube': {
+            const pts = [];
+            for (let i = 0; i <= 48; i++) { const t = i / 48; pts.push(new THREE.Vector3(Math.cos(t * Math.PI * 4) * 0.4, t * 1.4, Math.sin(t * Math.PI * 4) * 0.4)); }
+            const curve = new THREE.CatmullRomCurve3(pts);
+            geo = new THREE.TubeGeometry(curve, 120, 0.09, 12, false); defaults.tube = [0.09, 1.4, 4]; break;
+        }
+        case 'polyhedron': {
+            const verts = [-1, -1, -1, 1, -1, -1, 1, 1, -1, -1, 1, -1, -1, -1, 1, 1, -1, 1, 1, 1, 1, -1, 1, 1];
+            const idx = [2, 1, 0, 0, 3, 2, 0, 4, 7, 7, 3, 0, 0, 1, 5, 5, 4, 0, 1, 2, 6, 6, 5, 1, 2, 3, 7, 7, 6, 2, 4, 5, 6, 6, 7, 4];
+            geo = new THREE.PolyhedronGeometry(verts, idx, 0.7, 0); defaults.polyhedron = [0.7]; break;
+        }
+        case 'text': {
+            if (!loadedFont) { if (!opts.silent) editorToast('Font still loading'); return; }
+            const tg = new THREE.TextGeometry('HELLO', { font: loadedFont, size: 0.55, height: 0.18, curveSegments: 6, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.015, bevelSegments: 2 });
+            tg.center(); geo = tg; defaults.text = [0.55, 0.18, 'HELLO']; break;
+        }
+        default: return;
+    }
+    if (!opts.name) primitiveCounter[type] = (primitiveCounter[type] || 0) + 1;
+    const name = opts.name || (type.charAt(0).toUpperCase() + type.slice(1) + '_' + primitiveCounter[type]);
+    const palette = { box: 0xff6b6b, sphere: 0x4ecdc4, cylinder: 0xffe66d, cone: 0xff8c42, torus: 0xaa96da, plane: 0xa8d8ea, capsule: 0xfcbad3, tetra: 0x95e1d3, icosa: 0xf38181, octa: 0xffd93d, dodeca: 0x6bcb77, torusKnot: 0xc780fa, ring: 0x7ec8e3, circle: 0xb8e994, lathe: 0xffa502, star: 0xffd32a, tube: 0xa29bfe, polyhedron: 0xfd79a8, text: 0x00b894 };
+    const startColor = opts.color || ('#' + new THREE.Color(palette[type] || 0xcccccc).getHexString());
+    const mat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(startColor),
+        metalness: 0.15, roughness: 0.55,
+        envMapIntensity: 0.8,
+        side: (type === 'plane' || type === 'ring' || type === 'circle') ? THREE.DoubleSide : THREE.FrontSide
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.name = name;
+    if (opts.position) mesh.position.fromArray(opts.position);
+    else {
+        const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+        mesh.position.copy(camera.position).addScaledVector(dir, 6);
+        geo.computeBoundingBox();
+        const bb = geo.boundingBox;
+        if (bb && isFinite(bb.min.y)) mesh.position.y -= bb.min.y;
+    }
+    if (opts.rotation) mesh.rotation.set(opts.rotation[0], opts.rotation[1], opts.rotation[2]);
+    if (opts.scale) mesh.scale.fromArray(opts.scale);
+    mesh.userData.primitiveType = type;
+    mesh.userData.primitiveArgs = defaults[type];
+    mesh.userData.assetPath = 'primitive:' + type;
+    mesh.userData.url = '';
+    scene.add(mesh);
+    editorModels.push({ name, assetPath: 'primitive:' + type, url: '', object: mesh, isPrimitive: true, primitiveType: type, primitiveArgs: defaults[type] });
+    if (!opts.silent) {
+        refreshEditorSceneList();
+        editorSelect(mesh);
+        editorToast('Added ' + name);
+        saveEditorScene(true);
+    }
+}
+document.querySelectorAll('.ed-shape').forEach(btn => { btn.onclick = () => createPrimitive(btn.dataset.shape); });
+
+// ============= PRE-SCENE UI =============
+function renderPreSceneList() {
+    const el = $('ed-prescene');
+    el.innerHTML = '';
+    prePlacedGroups.forEach(g => {
+        const row = document.createElement('div');
+        row.className = 'ed-item' + (g.deleted ? ' hidden' : (g.visible ? '' : ' hidden'));
+        const label = g.deleted ? g.name + ' (removed)' : (g.visible ? g.name : g.name + ' (hidden)');
+        row.innerHTML = `<span class="nm">${label}</span>`;
+        const eyeBtn = document.createElement('button');
+        eyeBtn.className = 'mini'; eyeBtn.title = g.visible ? 'Hide' : 'Show';
+        eyeBtn.textContent = g.visible ? '👁' : '🚫';
+        const delBtn = document.createElement('button');
+        delBtn.className = 'mini'; delBtn.title = 'Remove permanently';
+        delBtn.textContent = '✕';
+        if (!g.deleted) {
+            eyeBtn.onclick = e => { e.stopPropagation(); g.visible = !g.visible; g.objects.forEach(o => o.visible = g.visible); savePreSceneState(); renderPreSceneList(); };
+            delBtn.onclick = e => {
+                e.stopPropagation();
+                if (!confirm('Permanently remove "' + g.name + '"?')) return;
+                g.deleted = true;
+                g.objects.forEach(o => { if (o.parent) o.parent.remove(o); });
+                savePreSceneState(); renderPreSceneList();
+                editorToast('Removed: ' + g.name);
+            };
+        } else {
+            eyeBtn.disabled = true; eyeBtn.style.opacity = '0.3';
+            delBtn.disabled = true; delBtn.style.opacity = '0.3';
+        }
+        row.appendChild(eyeBtn); row.appendChild(delBtn);
+        el.appendChild(row);
+    });
+}
+$('ed-restore-prescene').onclick = () => {
+    if (!confirm('Restore all base scene objects?')) return;
+    prePlacedGroups.forEach(g => {
+        g.visible = true; g.deleted = false;
+        g.objects.forEach(o => { if (!o.parent) scene.add(o); o.visible = true; });
+    });
+    try { localStorage.removeItem(PRESCENE_KEY); } catch (e) {}
+    renderPreSceneList();
+    editorToast('Base scene restored');
+};
+
+// ============= REPO SCAN =============
+let editorRepoBase = null, editorRemoteFiles = [];
+function detectRepoFromURL() {
+    const host = location.hostname;
+    const path = location.pathname.split('/').filter(Boolean);
+    const m = host.match(/^([a-z0-9_-]+)\.github\.io$/i);
+    if (m && path[0]) return { owner: m[1], repo: path[0] };
+    return null;
+}
+function autoFillRepo() {
+    const det = detectRepoFromURL();
+    if (det) { const r = $('ed-repo'); if (!r.value) r.value = `${det.owner}/${det.repo}`; return `${det.owner}/${det.repo}`; }
+    return null;
+}
+async function editorScanRepo(silent) {
+    let raw = $('ed-repo').value.trim();
+    if (!raw) { raw = autoFillRepo() || ''; if (!raw) { if (!silent) edStatus('Not on GitHub Pages', '#ff5566'); return; } }
+    raw = raw.replace(/^git@github\.com:/, '').replace(/^https?:\/\/(www\.)?github\.com\//, '').replace(/\.git$/, '').replace(/^\/+|\/+$/g, '');
+    const parts = raw.split('/');
+    if (parts.length > 2) raw = parts[0] + '/' + parts[1];
+    if (!raw.includes('/')) { if (!silent) edStatus('Enter as owner/repo', '#ff5566'); return; }
+    const branch = $('ed-branch').value.trim() || 'main';
+    const folder = $('ed-folder').value.trim().replace(/^\/+|\/+$/g, '') || 'assets';
+    edStatus('Scanning ' + raw + '/' + folder + '…', '#8b98a8');
+    try {
+        const res = await fetch(`https://api.github.com/repos/${raw}/contents/${folder}?ref=${branch}`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (!Array.isArray(data)) throw new Error('Not a folder');
+        const allNames = data.map(f => f.name.toLowerCase());
+        editorRepoBase = { repo: raw, branch, folder };
+        editorRemoteFiles = data.filter(f => /\.(glb|gltf|obj|fbx|blend)$/i.test(f.name)).map(f => {
+            const ext = f.name.split('.').pop().toLowerCase();
+            const baseName = f.name.replace(/\.(glb|gltf|obj|fbx|blend)$/i, '');
+            return { name: baseName, path: `${folder}/${f.name}`, url: `https://raw.githubusercontent.com/${raw}/${branch}/${folder}/${encodeURIComponent(f.name)}`, ext, hasMTL: allNames.includes((baseName + '.mtl').toLowerCase()) };
+        });
+        renderEditorRemote();
+        edStatus(editorRemoteFiles.length + ' model(s) found', editorRemoteFiles.length ? '#38ef7d' : '#ffaa44');
+    } catch (e) {
+        if (!silent) edStatus('Error: ' + e.message, '#ff5566');
+        else edStatus('Auto-scan failed', '#ffaa44');
+    }
+}
+function renderEditorRemote() {
+    const el = $('ed-remote');
+    if (!editorRemoteFiles.length) { el.innerHTML = '<div class="ed-empty">No models found</div>'; return; }
+    el.innerHTML = '';
+    editorRemoteFiles.forEach(f => {
+        const added = editorModels.some(m => m.assetPath === f.path);
+        const tagMap = { glb: 'GLB', gltf: 'GLTF', obj: f.hasMTL ? 'OBJ+MTL' : 'OBJ', fbx: 'FBX', blend: 'BLEND ⚠' };
+        const tag = tagMap[f.ext] || f.ext.toUpperCase();
+        const row = document.createElement('div');
+        row.className = 'ed-item';
+        row.innerHTML = `<span class="nm">${f.name}<span class="tag">${tag}</span></span><button class="mini add" ${added ? 'disabled style="opacity:.3"' : ''}>${added ? '✓' : '+'}</button>`;
+        row.querySelector('.mini').onclick = ev => { ev.stopPropagation(); if (added) return; editorLoadModel(f); renderEditorRemote(); };
+        el.appendChild(row);
+    });
+}
+function edStatus(t, c) { const s = $('ed-status'); s.textContent = t; s.style.color = c || '#8b98a8'; }
+
+// ============= SELECTION =============
+const editorRaycaster = new THREE.Raycaster();
+const editorNDC = new THREE.Vector2();
+let editorPointerDown = null;
+let editorDragged = false;
+function editorSelect(obj, additive) {
+    if (!obj) { editorSelected = null; editorSelection = []; }
+    else if (additive) {
+        const idx = editorSelection.indexOf(obj);
+        if (idx >= 0) { editorSelection.splice(idx, 1); if (editorSelected === obj) editorSelected = editorSelection[editorSelection.length - 1] || null; }
+        else { editorSelection.push(obj); editorSelected = obj; }
+    } else { editorSelection = [obj]; editorSelected = obj; }
+    updateSelectionVisuals();
+    if (editorSelected) { $('ed-no-sel').style.display = 'none'; $('ed-prop-body').style.display = 'block'; syncEditorPropsFromObj(); }
+    else { $('ed-no-sel').style.display = 'block'; $('ed-prop-body').style.display = 'none'; }
+    $('ed-sel-count').textContent = editorSelection.length;
+    refreshEditorSceneList();
+}
+function updateSelectionVisuals() {
+    editorBoxes.forEach(b => { scene.remove(b); b.geometry.dispose(); });
+    editorBoxes = [];
+    if (editorBox) { scene.remove(editorBox); editorBox.geometry.dispose(); editorBox = null; }
+    if (editorSelection.length === 0) { editorControl.detach(); editorControl.visible = false; editorControl.enabled = false; return; }
+    editorControl.attach(editorSelected);
+    editorControl.visible = true; editorControl.enabled = true;
+    editorSelection.forEach(obj => {
+        const b = new THREE.BoxHelper(obj, editorSelection.length > 1 ? 0xffb84d : 0x00c6ff);
+        b.material.depthTest = false; b.material.transparent = true; b.material.opacity = 0.9;
+        scene.add(b); editorBoxes.push(b);
+    });
+}
+function refreshEditorSceneList() {
+    const el = $('ed-scene');
+    $('ed-count').textContent = editorModels.length;
+    if (!editorModels.length) { el.innerHTML = '<div class="ed-empty">Nothing loaded</div>'; return; }
+    el.innerHTML = '';
+    editorModels.forEach(m => {
+        const row = document.createElement('div');
+        row.className = 'ed-item' + (editorSelection.indexOf(m.object) >= 0 ? ' sel' : '');
+        row.innerHTML = `<span class="nm">${m.name}</span><button class="mini">${m.object.visible ? '👁' : '🚫'}</button><button class="mini">✕</button>`;
+        row.onclick = (e) => editorSelect(m.object, e.shiftKey || e.ctrlKey || e.metaKey || multiSelectMode);
+        const [eye, del] = row.querySelectorAll('.mini');
+        eye.onclick = e => { e.stopPropagation(); m.object.visible = !m.object.visible; refreshEditorSceneList(); saveEditorScene(true); };
+        del.onclick = e => { e.stopPropagation(); editorRemoveModel(m); };
+        el.appendChild(row);
+    });
+}
+function duplicateSelection(offsetX) {
+    offsetX = offsetX || 1.5;
+    if (editorSelection.length === 0) { editorToast('Nothing selected'); return; }
+    const srcSelection = [...editorSelection];
+    const newSelection = [];
+    srcSelection.forEach(obj => {
+        const clone = obj.clone(true);
+        clone.traverse(o => { if (o.isMesh && o.material) { o.material = Array.isArray(o.material) ? o.material.map(m => m.clone()) : o.material.clone(); } });
+        clone.position.x += offsetX;
+        clone.name = (obj.name || 'Object') + '_copy';
+        clone.userData = Object.assign({}, obj.userData);
+        scene.add(clone);
+        const src = editorModels.find(m => m.object === obj);
+        editorModels.push({ name: clone.name, assetPath: src ? src.assetPath : clone.userData.assetPath || '', url: src ? src.url : clone.userData.url || '', object: clone, isPrimitive: src ? src.isPrimitive : false, primitiveType: src ? src.primitiveType : clone.userData.primitiveType, primitiveArgs: src ? src.primitiveArgs : clone.userData.primitiveArgs });
+        newSelection.push(clone);
+    });
+    editorSelection = newSelection;
+    editorSelected = newSelection[0];
+    updateSelectionVisuals();
+    $('ed-sel-count').textContent = editorSelection.length;
+    refreshEditorSceneList();
+    editorToast('Duplicated ' + newSelection.length);
+    saveEditorScene(true);
+}
+function editorRemoveModel(m) {
+    const idx = editorSelection.indexOf(m.object);
+    if (idx >= 0) editorSelection.splice(idx, 1);
+    if (editorSelected === m.object) editorSelected = editorSelection[editorSelection.length - 1] || null;
+    scene.remove(m.object);
+    m.object.traverse(o => {
+        if (o.isMesh) {
+            o.geometry && o.geometry.dispose();
+            if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(mm => { if (mm.map) mm.map.dispose(); mm.dispose(); });
+        }
+    });
+    editorModels.splice(editorModels.indexOf(m), 1);
+    updateSelectionVisuals();
+    $('ed-sel-count').textContent = editorSelection.length;
+    refreshEditorSceneList();
+    renderEditorRemote();
+    saveEditorScene(true);
+}
+const ED_RAD = Math.PI / 180;
+const edRound = v => Math.round(v * 1000) / 1000;
+function syncEditorPropsFromObj() {
+    if (!editorSelected) return;
+    const p = editorSelected.position, r = editorSelected.rotation, s = editorSelected.scale;
+    let foundColor = null;
+    editorSelected.traverse(o => { if (foundColor) return; if (o.isMesh && o.material) { const m = Array.isArray(o.material) ? o.material[0] : o.material; if (m && m.color) foundColor = '#' + m.color.getHexString(); } });
+    if (foundColor) $('ed-color').value = foundColor;
+    $('ed-name').value = editorSelected.name || '';
+    $('ed-path').value = editorSelected.userData.assetPath || '';
+    $('ed-px').value = edRound(p.x); $('ed-py').value = edRound(p.y); $('ed-pz').value = edRound(p.z);
+    $('ed-rx').value = edRound(r.x / ED_RAD); $('ed-ry').value = edRound(r.y / ED_RAD); $('ed-rz').value = edRound(r.z / ED_RAD);
+    $('ed-sx').value = edRound(s.x); $('ed-sy').value = edRound(s.y); $('ed-sz').value = edRound(s.z);
+}
+function edBind(id, fn) {
+    const el = $(id);
+    el.addEventListener('input', () => { if (editorSelected) { fn(parseFloat(el.value) || 0); editorSelection.forEach((obj, i) => { if (editorBoxes[i]) editorBoxes[i].setFromObject(obj); }); saveEditorScene(); } });
+    el.addEventListener('blur', () => { if (editorSelected) syncEditorPropsFromObj(); });
+}
+edBind('ed-px', v => editorSelected.position.x = v);
+edBind('ed-py', v => editorSelected.position.y = v);
+edBind('ed-pz', v => editorSelected.position.z = v);
+edBind('ed-rx', v => editorSelected.rotation.x = v * ED_RAD);
+edBind('ed-ry', v => editorSelected.rotation.y = v * ED_RAD);
+edBind('ed-rz', v => editorSelected.rotation.z = v * ED_RAD);
+edBind('ed-sx', v => { editorSelected.scale.x = v; if ($('ed-uniform').checked) { editorSelected.scale.y = v; editorSelected.scale.z = v; } });
+edBind('ed-sy', v => { editorSelected.scale.y = v; if ($('ed-uniform').checked) { editorSelected.scale.x = v; editorSelected.scale.z = v; } });
+edBind('ed-sz', v => { editorSelected.scale.z = v; if ($('ed-uniform').checked) { editorSelected.scale.x = v; editorSelected.scale.y = v; } });
+$('ed-scale-reset').onclick = () => { if (!editorSelected) return; editorSelected.scale.set(1, 1, 1); syncEditorPropsFromObj(); editorSelection.forEach((obj, i) => { if (editorBoxes[i]) editorBoxes[i].setFromObject(obj); }); saveEditorScene(true); };
+$('ed-scale-uniform').onclick = () => {
+    if (!editorSelected) return;
+    const avg = (editorSelected.scale.x + editorSelected.scale.y + editorSelected.scale.z) / 3;
+    editorSelected.scale.set(avg, avg, avg);
+    syncEditorPropsFromObj(); editorSelection.forEach((obj, i) => { if (editorBoxes[i]) editorBoxes[i].setFromObject(obj); }); saveEditorScene(true);
+};
+$('ed-scale-match').onclick = () => {
+    if (!editorSelected || editorSelection.length < 2) { editorToast('Select 2+ objects'); return; }
+    const src = editorSelected.scale.clone();
+    editorSelection.forEach(obj => { if (obj !== editorSelected) obj.scale.copy(src); });
+    editorSelection.forEach((obj, i) => { if (editorBoxes[i]) editorBoxes[i].setFromObject(obj); });
+    editorToast('Scale matched'); saveEditorScene(true);
+};
+function applyColor(hex) {
+    if (!editorSelection.length) return;
+    editorSelection.forEach(obj => applyColorToObject(obj, hex));
+    editorToast('Recolored ' + editorSelection.length);
+    saveEditorScene(true);
+}
+$('ed-color').addEventListener('input', e => applyColor(e.target.value));
+$('ed-color-random').onclick = () => { const hex = '#' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0'); $('ed-color').value = hex; applyColor(hex); };
+$('ed-name').addEventListener('input', e => {
+    if (!editorSelected) return;
+    editorSelected.name = e.target.value;
+    const m = editorModels.find(x => x.object === editorSelected);
+    if (m) m.name = e.target.value;
+    refreshEditorSceneList(); saveEditorScene();
+});
+$('ed-focus').onclick = () => {
+    if (!editorSelected) return;
+    const box = new THREE.Box3().setFromObject(editorSelected);
+    const size = box.getSize(new THREE.Vector3()).length() || 2;
+    const center = box.getCenter(new THREE.Vector3());
+    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    camera.position.copy(center).addScaledVector(dir, -size * 1.6);
+    camera.lookAt(center);
+    const e = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+    cameraAngles.yaw = e.y; cameraAngles.pitch = e.x;
+};
+$('ed-dup').onclick = () => duplicateSelection(1.5);
+$('ed-del').onclick = () => {
+    if (!editorSelection.length) return;
+    [...editorSelection].forEach(obj => { const m = editorModels.find(x => x.object === obj); if (m) editorRemoveModel(m); });
+    editorSelection = []; editorSelected = null;
+    updateSelectionVisuals(); $('ed-sel-count').textContent = '0';
+};
+document.querySelectorAll('.ed-btn.mode').forEach(btn => {
+    btn.onclick = () => {
+        document.querySelectorAll('.ed-btn.mode').forEach(b => b.classList.remove('on'));
+        btn.classList.add('on');
+        editorControl.setMode(btn.dataset.mode);
+    };
+});
+$('ed-multiselect-toggle').onclick = () => {
+    multiSelectMode = !multiSelectMode;
+    const btn = $('ed-multiselect-toggle');
+    btn.classList.toggle('on', multiSelectMode);
+    btn.textContent = (multiSelectMode ? '☑' : '☐') + ' Multi-Select: ' + (multiSelectMode ? 'ON' : 'OFF');
+    editorToast(multiSelectMode ? 'Multi-select ON' : 'Multi-select OFF');
+};
+$('ed-collision-toggle').onclick = () => {
+    collisionEnabled = !collisionEnabled;
+    const btn = $('ed-collision-toggle');
+    btn.classList.toggle('on', collisionEnabled);
+    btn.textContent = (collisionEnabled ? '🚶' : '🚶') + ' Collision: ' + (collisionEnabled ? 'ON' : 'OFF');
+    editorToast(collisionEnabled ? 'Collision ON — player blocks on objects' : 'Collision OFF — walk through everything');
+};
+$('ed-scan').onclick = () => editorScanRepo(false);
+$('ed-advanced-toggle').onclick = () => {
+    const el = $('ed-advanced');
+    const open = el.style.display === 'block';
+    el.style.display = open ? 'none' : 'block';
+    $('ed-advanced-toggle').textContent = open ? '⚙ Advanced ▾' : '⚙ Advanced ▴';
+};
+$('ed-url-add').onclick = () => {
+    const raw = $('ed-url').value.trim();
+    if (!raw) return;
+    let url = raw;
+    let name = raw.split('/').pop().replace(/\.(glb|gltf|obj|fbx|blend)(\?.*)?$/i, '');
+    let ext = '';
+    const em0 = raw.match(/\.(glb|gltf|obj|fbx|blend)(\?.*)?$/i);
+    if (em0) ext = em0[1].toLowerCase();
+    if (/^https?:\/\//.test(raw)) {
+        const fname = raw.split('/').pop().split('?')[0];
+        name = fname.replace(/\.(glb|gltf|obj|fbx|blend)$/i, '');
+        const em = fname.match(/\.(glb|gltf|obj|fbx|blend)$/i);
+        if (em) ext = em[1].toLowerCase();
+    } else if (editorRepoBase) {
+        const clean = raw.replace(/^\/+/, '');
+        const path = clean.startsWith(editorRepoBase.folder + '/') ? clean : (editorRepoBase.folder + '/' + clean);
+        url = `https://raw.githubusercontent.com/${editorRepoBase.repo}/${editorRepoBase.branch}/${path}`;
+        const fname = path.split('/').pop();
+        name = fname.replace(/\.(glb|gltf|obj|fbx|blend)$/i, '');
+        const em = fname.match(/\.(glb|gltf|obj|fbx|blend)$/i);
+        if (em) ext = em[1].toLowerCase();
+    }
+    if (!ext) ext = 'glb';
+    dbgReset(name);
+    dbg('info', 'Direct load · ext=' + ext, url);
+    if (ext === 'blend') { showBlendWarning(name + '.blend'); return; }
+    if (ext === 'obj') editorLoadOBJ(url, name, raw);
+    else if (ext === 'fbx') editorLoadFBX(url, name, raw);
+    else editorLoadGLB(url, name, raw);
+    $('ed-url').value = '';
+};
+
+// ============= EDITOR CAMERA / JOYSTICK =============
+let edJoyId = null;
+let edJoyVec = { x: 0, y: 0 };
+let edFlyUp = false, edFlyDown = false;
+const edJoyZone = document.getElementById('ed-joystick-zone');
+const edJoyKnob = document.getElementById('ed-joystick-knob');
+function edUpdateJoy(t) {
+    const r = edJoyZone.getBoundingClientRect();
+    const max = r.width / 2 - 20;
+    let dx = t.clientX - (r.left + r.width / 2);
+    let dy = t.clientY - (r.top + r.height / 2);
+    const dist = Math.hypot(dx, dy);
+    if (dist > max) { dx = dx / dist * max; dy = dy / dist * max; }
+    edJoyKnob.style.transform = `translate(${dx}px,${dy}px)`;
+    edJoyVec.x = dx / max; edJoyVec.y = dy / max;
+}
+edJoyZone.addEventListener('touchstart', e => { if (edJoyId === null) { edJoyId = e.changedTouches[0].identifier; edUpdateJoy(e.changedTouches[0]); e.preventDefault(); } }, { passive: false });
+edJoyZone.addEventListener('touchmove', e => { for (const t of e.changedTouches) if (t.identifier === edJoyId) { edUpdateJoy(t); e.preventDefault(); } }, { passive: false });
+const edEndJoy = e => { for (const t of e.changedTouches) if (t.identifier === edJoyId) { edJoyId = null; edJoyKnob.style.transform = 'translate(0px,0px)'; edJoyVec = { x: 0, y: 0 }; } };
+edJoyZone.addEventListener('touchend', edEndJoy);
+edJoyZone.addEventListener('touchcancel', edEndJoy);
+function edBindHold(el, setter) {
+    const on = e => { e.preventDefault(); setter(true); };
+    const off = e => { e.preventDefault(); setter(false); };
+    el.addEventListener('touchstart', on, { passive: false });
+    el.addEventListener('touchend', off); el.addEventListener('touchcancel', off);
+    el.addEventListener('mousedown', on); el.addEventListener('mouseup', off); el.addEventListener('mouseleave', off);
+}
+edBindHold($('ed-up'), v => edFlyUp = v);
+edBindHold($('ed-down'), v => edFlyDown = v);
+function edResetJoystick() { edJoyId = null; edJoyVec = { x: 0, y: 0 }; edFlyUp = false; edFlyDown = false; edJoyKnob.style.transform = 'translate(0px,0px)'; }
+
+let autoScanDone = false;
+$('editor-toggle').onclick = () => {
+    editorMode = !editorMode;
+    document.body.classList.toggle('editor', editorMode);
+    document.body.classList.toggle('has-debug', editorMode && debugState.visible);
+    $('editor-toggle').textContent = editorMode ? '✕ EXIT EDITOR' : '✎ SCENE EDITOR';
+    if (editorMode) {
+        savedCam.pos.copy(camera.position); savedCam.quat.copy(camera.quaternion);
+        camera.position.set(0, 14, 22); camera.lookAt(0, 0, 0);
+        const e = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+        cameraAngles.yaw = e.y; cameraAngles.pitch = e.x;
+        if (currentRodModel) currentRodModel.visible = false;
+        editorControl.enabled = true;
+        editorToast('Editor ON');
+        renderPreSceneList();
+        renderDebug();
+        if (!autoScanDone) { autoScanDone = true; editorScanRepo(true); }
+        else if (!editorRemoteFiles.length) editorScanRepo(true);
+    } else {
+        camera.position.copy(savedCam.pos); camera.quaternion.copy(savedCam.quat);
+        const e = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+        cameraAngles.yaw = e.y; cameraAngles.pitch = e.x;
+        if (currentRodModel) currentRodModel.visible = true;
+        editorControl.enabled = false; editorControl.visible = false;
+        edResetJoystick();
+        document.body.classList.remove('has-debug');
+        $('editor-debug').style.display = 'none';
+        editorToast('Editor OFF');
+    }
+};
+document.addEventListener('keydown', e => {
+    if (!editorMode) return;
+    const k = e.key.toLowerCase();
+    if (k in editorKeys) { editorKeys[k] = true; if (k === 'w' || k === 'a' || k === 's' || k === 'd') e.preventDefault(); }
+    if (e.code === 'Space') { editorKeys.space = true; e.preventDefault(); }
+    if (k === 'c') editorKeys.c = true;
+    if (e.key === 'Shift') editorKeys.shift = true;
+    if (k === '1') { editorControl.setMode('translate'); document.querySelectorAll('.ed-btn.mode').forEach(b => b.classList.toggle('on', b.dataset.mode === 'translate')); }
+    if (k === '2') { editorControl.setMode('rotate'); document.querySelectorAll('.ed-btn.mode').forEach(b => b.classList.toggle('on', b.dataset.mode === 'rotate')); }
+    if (k === '3') { editorControl.setMode('scale'); document.querySelectorAll('.ed-btn.mode').forEach(b => b.classList.toggle('on', b.dataset.mode === 'scale')); }
+    if (k === 'f') $('ed-focus').click();
+    if (k === 'delete' || k === 'backspace') {
+        if (editorSelection.length) {
+            [...editorSelection].forEach(obj => { const m = editorModels.find(x => x.object === obj); if (m) editorRemoveModel(m); });
+            editorSelection = []; editorSelected = null;
+            updateSelectionVisuals(); $('ed-sel-count').textContent = '0';
+        }
+    }
+    if (k === 'd' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); duplicateSelection(1.5); }
+    if (k === 'escape') editorSelect(null);
+});
+document.addEventListener('keyup', e => {
+    const k = e.key.toLowerCase();
+    if (k in editorKeys) editorKeys[k] = false;
+    if (e.code === 'Space') editorKeys.space = false;
+    if (e.key === 'Shift') editorKeys.shift = false;
+});
+function updateEditorCamera(dt) {
+    const speed = (editorKeys.shift ? 40 : 14) * dt;
+    const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+    const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+    let fwd = 0, side = 0;
+    if (editorKeys.w) fwd += 1;
+    if (editorKeys.s) fwd -= 1;
+    if (editorKeys.d) side += 1;
+    if (editorKeys.a) side -= 1;
+    if (edJoyVec.x !== 0 || edJoyVec.y !== 0) { side += edJoyVec.x; fwd += -edJoyVec.y; }
+    if (fwd !== 0) camera.position.addScaledVector(dir, fwd * speed);
+    if (side !== 0) camera.position.addScaledVector(right, side * speed);
+    let vert = 0;
+    if (editorKeys.space) vert += 1;
+    if (editorKeys.c) vert -= 1;
+    if (edFlyUp) vert += 1;
+    if (edFlyDown) vert -= 1;
+    if (vert !== 0) camera.position.y += vert * speed;
+}
+const canvasEl = renderer.domElement;
+canvasEl.addEventListener('pointerdown', e => { if (!editorMode) return; editorPointerDown = { x: e.clientX, y: e.clientY }; editorDragged = false; });
+canvasEl.addEventListener('pointermove', e => { if (!editorMode || !editorPointerDown) return; if (Math.hypot(e.clientX - editorPointerDown.x, e.clientY - editorPointerDown.y) > 5) editorDragged = true; });
+canvasEl.addEventListener('pointerup', e => {
+    if (!editorMode) return;
+    if (editorDragged || editorGizmoDragging || editorControl.dragging) { editorPointerDown = null; return; }
+    editorPointerDown = null;
+    const rect = canvasEl.getBoundingClientRect();
+    editorNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    editorNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    editorRaycaster.setFromCamera(editorNDC, camera);
+    const objs = editorModels.filter(m => m.object.visible).map(m => m.object);
+    const hits = editorRaycaster.intersectObjects(objs, true);
+    const additive = multiSelectMode || e.shiftKey || e.ctrlKey || e.metaKey;
+    if (hits.length) {
+        let o = hits[0].object;
+        while (o.parent && !editorModels.some(m => m.object === o)) o = o.parent;
+        editorSelect(o, additive);
+    } else { if (!additive) editorSelect(null); }
+});
+$('ed-export').onclick = () => {
+    if (!editorModels.length) { editorToast('Scene is empty'); return; }
+    const lines = editorModels.map(m => {
+        const p = m.object.position, r = m.object.rotation, s = m.object.scale;
+        const f = n => Math.round(n * 1000) / 1000;
+        if (m.isPrimitive) {
+            const args = (m.primitiveArgs || []).join(', ');
+            const col = m.object.material && m.object.material.color ? m.object.material.color.getHexString() : 'cccccc';
+            return `  { type:'primitive', shape:'${m.primitiveType}', args:[${args}], color:'#${col}', name:'${m.name}', position:[${f(p.x)}, ${f(p.y)}, ${f(p.z)}], rotation:[${f(r.x / ED_RAD)}, ${f(r.y / ED_RAD)}, ${f(r.z / ED_RAD)}], scale:[${f(s.x)}, ${f(s.y)}, ${f(s.z)}] }`;
+        }
+        return `  { type:'model', name:'${m.name}', path:'${m.assetPath}', position:[${f(p.x)}, ${f(p.y)}, ${f(p.z)}], rotation:[${f(r.x / ED_RAD)}, ${f(r.y / ED_RAD)}, ${f(r.z / ED_RAD)}], scale:[${f(s.x)}, ${f(s.y)}, ${f(s.z)}] }`;
+    });
+    $('ed-export-text').value = `const sceneAssets = [\n${lines.join(',\n')}\n];\n`;
+    $('editor-modal').classList.add('on');
+};
+$('ed-close-modal').onclick = () => $('editor-modal').classList.remove('on');
+$('ed-copy').onclick = () => {
+    const ta = $('ed-export-text'); ta.select();
+    try { document.execCommand('copy'); editorToast('Copied!'); }
+    catch (e) { navigator.clipboard.writeText(ta.value).then(() => editorToast('Copied!')); }
+};
+let edToastT = null;
+function editorToast(t) {
+    const el = $('ed-toast'); el.textContent = t; el.classList.add('on');
+    clearTimeout(edToastT);
+    edToastT = setTimeout(() => el.classList.remove('on'), 1800);
+}
+
+// ============= STARTUP =============
+setTimeout(() => {
+    const l = document.getElementById('loading-screen'); l.style.opacity = '0';
+    setTimeout(() => {
+        l.style.display = 'none';
+        document.getElementById('ui-layer').style.opacity = '1';
+        loadEditorScene().catch(e => console.warn('[restore] failed', e));
+    }, 800);
+}, 2000);
+updateHUD();
+autoFillRepo();
+applyPreSceneState();
+
+// ============= MAIN LOOP =============
+const clock = new THREE.Clock();
+const _tip = new THREE.Vector3(), _dir = new THREE.Vector3(), _right = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
+let bob = 0;
+function animate() {
+    requestAnimationFrame(animate);
+    const dt = Math.min(clock.getDelta(), 0.1), time = clock.elapsedTime;
+    clouds.children.forEach((c, i) => { c.position.x += dt * (1.2 + (i % 3) * 0.4); if (c.position.x > 500) c.position.x = -500; });
+
+    if (currentRodModel) {
+        const bolts = currentRodModel.getObjectByName('lightningBolts');
+        if (bolts) {
+            bolts.visible = Math.random() > 0.4;
+            if (bolts.visible) bolts.children.forEach(line => {
+                const p = line.geometry.attributes.position.array;
+                for (let i = 3; i < p.length - 3; i += 3) { p[i] = (Math.random() - 0.5) * 0.2; p[i + 2] = (Math.random() - 0.5) * 0.2; }
+                line.geometry.attributes.position.needsUpdate = true;
+            });
+        }
+    }
+
+    if (editorMode) {
+        updateEditorCamera(dt);
+        editorSelection.forEach((obj, i) => { if (editorBoxes[i]) editorBoxes[i].setFromObject(obj); });
+        sky.position.copy(camera.position);
+        renderer.render(scene, camera);
+        return;
+    }
+
+    if (state === 'idle' || state.startsWith('near_')) {
+        let mX = moveVector.x, mY = -moveVector.y;
+        if (keys.w) mY = 1; if (keys.s) mY = -1; if (keys.a) mX = -1; if (keys.d) mX = 1;
+        const moving = mX !== 0 || mY !== 0;
+        if (moving) {
+            const speed = 7 * dt;
+            camera.getWorldDirection(_dir); _dir.y = 0; _dir.normalize();
+            _right.crossVectors(_dir, _up).normalize();
+            const oldPos = camera.position.clone();
+            camera.position.addScaledVector(_dir, mY * speed).addScaledVector(_right, mX * speed);
+            camera.position.x = Math.max(-9.5, Math.min(9.5, camera.position.x));
+            camera.position.z = Math.max(-9.5, Math.min(9.5, camera.position.z));
+            if (collidesWithAssets(camera.position)) camera.position.copy(oldPos);
+            bob += dt * 10;
+        }
+        // Walk on island top: top surface is at y = 2.0 * 0.9 = 1.8
+        const groundY = 1.8;
+        camera.position.y += (((moving ? groundY + 1.7 + Math.sin(bob) * 0.045 : groundY + 1.7)) - camera.position.y) * Math.min(1, dt * 10);
+    }
+
+    const fishing = state === 'casting' || state === 'hooked' || state === 'minigame';
+    fishingLine.visible = bobber.visible = fishing;
+    ripples.forEach(r => r.visible = fishing);
+    if (fishing) {
+        rodTipBone.getWorldPosition(_tip);
+        const tg = fishingLine.userData.target;
+        const tug = state === 'minigame' ? Math.sin(time * 22) * 0.12 : state === 'hooked' ? Math.sin(time * 30) * 0.08 : 0;
+        const y = 0.5 - tug;
+        bobber.position.set(tg.x, y + 0.04, tg.z);
+        bobber.rotation.set(Math.sin(time * 1.7) * 0.12, 0, Math.cos(time * 1.3) * 0.12);
+        const sag = state === 'minigame' ? 0.15 : state === 'hooked' ? 0.5 : 1.6;
+        const p = lineGeo.attributes.position.array;
+        for (let i = 0; i < LINE_PTS; i++) {
+            const s = i / (LINE_PTS - 1);
+            p[i * 3] = _tip.x + (tg.x - _tip.x) * s;
+            p[i * 3 + 1] = _tip.y + (y + 0.15 - _tip.y) * s - 4 * sag * s * (1 - s);
+            p[i * 3 + 2] = _tip.z + (tg.z - _tip.z) * s;
+        }
+        lineGeo.attributes.position.needsUpdate = true;
+        ripples.forEach((r, i) => {
+            const s = (time * 0.7 + i * 0.5) % 1;
+            r.position.set(tg.x, y + 0.02, tg.z); r.scale.setScalar(0.6 + s * 3.2); r.material.opacity = (1 - s) * 0.5;
+        });
+    }
+
+    for (let i = 0; i < SP_N; i++) {
+        if (spLife[i] > 0) {
+            spLife[i] -= dt * 1.2; spVel[i * 3 + 1] -= 9.8 * dt;
+            spPos[i * 3] += spVel[i * 3] * dt; spPos[i * 3 + 1] += spVel[i * 3 + 1] * dt; spPos[i * 3 + 2] += spVel[i * 3 + 2] * dt;
+            if (spLife[i] <= 0 || spPos[i * 3 + 1] < -0.6) { spLife[i] = 0; spPos[i * 3 + 1] = -100; }
+        }
+    }
+    spGeo.attributes.position.needsUpdate = true;
+
+    if (state === 'popup' && popupFishMesh) {
+        popupFishMesh.rotation.y += 1.5 * dt;
+        popupFishMesh.rotation.z = Math.sin(time * 4) * 0.08;
+        popupFishMesh.position.y = Math.sin(time * 2) * 0.1;
+        const tail = popupFishMesh.userData.tail; if (tail) tail.rotation.y = Math.sin(time * 9) * 0.5;
+    }
+
+    if (state === 'minigame') {
+        barPos += (isHoldingReel ? 250 : -250) * dt; barPos = Math.max(0, Math.min(270, barPos));
+        if (Math.random() < 0.05) fishTarget = Math.random() * 330;
+        fishPos += (fishTarget - fishPos) * 1.2 * dt; fishPos = Math.max(0, Math.min(342, fishPos));
+        const cb = document.getElementById('catch-bar');
+        if (fishPos >= barPos && fishPos <= barPos + 80) { catchProgress += 35 * dt; cb.style.borderColor = '#00ff00'; cb.style.background = 'rgba(0,255,0,.6)'; }
+        else { catchProgress -= 10 * dt; cb.style.borderColor = '#ff4444'; cb.style.background = 'rgba(255,68,68,.4)'; }
+        catchProgress = Math.max(0, Math.min(100, catchProgress));
+        cb.style.bottom = barPos + 'px';
+        document.getElementById('fish-line').style.bottom = fishPos + 'px';
+        document.getElementById('progress-fill').style.height = catchProgress + '%';
+        if (Math.random() < dt * 2) splash(fishingLine.userData.target, 4);
+        if (catchProgress >= 100) catchFish();
+    }
+
+    sky.position.copy(camera.position);
+    renderer.render(scene, camera);
+}
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+animate();
+</script>
+</body>
+</html>
