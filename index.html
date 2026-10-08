@@ -349,6 +349,7 @@ body.editor #ed-alt-btns{display:flex}
       <button class="ed-btn tog-on" id="ed-obj-collision">🚶 Coll: ON</button>
       <button class="ed-btn tog-on" id="ed-obj-shadows">☀ Shad: ON</button>
     </div>
+    <button class="ed-btn tog-on" id="ed-obj-visible" style="margin-top:6px">👁 Visible: YES</button>
     <div class="ed-sep" style="margin:10px 0 6px"></div>
     <div class="ed-row3" style="margin-top:0">
       <button class="ed-btn" id="ed-focus" style="margin-top:0">Focus</button>
@@ -601,7 +602,6 @@ const prePlacedGroups = [];
 function registerPreScene(id, name, objects) { prePlacedGroups.push({ id, name, objects: objects.filter(Boolean), visible: true, deleted: false }); }
 registerPreScene('water', 'Water', [water]);
 
-// ============= ISLAND (grass + sand are separate meshes) =============
 const islandGroup = new THREE.Group();
 scene.add(islandGroup);
 
@@ -834,8 +834,8 @@ function getCollidableMeshes() {
   const out = [];
   for (const m of editorModels) {
     if (!m.object.visible) continue;
-    if (m.specialRole) continue;                 // market / shop / spawn boxes are walk-through
-    if (m.object.userData.noCollision) continue; // per-object collision disabled
+    if (m.specialRole) continue;
+    if (m.object.userData.noCollision) continue;
     const pid = m.prePlacedId;
     if (pid === 'sky' || pid === 'clouds' || pid === 'water') continue;
     m.object.traverse(o => {
@@ -893,7 +893,6 @@ function handleBtnDown(e) {
   if (editorMode) return;
   if (state === 'minigame') { isHoldingReel = true; return; }
   if (state === 'idle') {
-    // Button-triggered special actions (red/blue box)
     if (nearbySpecial) {
       if (nearbySpecial.specialRole === 'sell') { openSell(); return; }
       if (nearbySpecial.specialRole === 'shop') { openShop(); return; }
@@ -904,8 +903,9 @@ function handleBtnDown(e) {
         return;
       }
     }
-    const gy = islandHeightAt(camera.position.x, camera.position.z);
-    if (gy !== null && gy < 2.0) {
+    // Player can fish anywhere they're standing on solid ground (the water barrier
+    // prevents walking into water, so any position above WATER_LEVEL is fishable).
+    if (camera.position.y > WATER_LEVEL + 0.5) {
       state = 'casting'; actionBtn.innerText = 'WAIT'; actionBtn.style.background = '#555';
       const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
       fishingLine.userData.target = camera.position.clone().add(dir.multiplyScalar(12)); fishingLine.userData.target.y = WATER_LEVEL;
@@ -1011,10 +1011,7 @@ let editorSelection = [], editorBoxes = [], dragSnapshot = null, restoreInProgre
 const editorKeys = { w: false, a: false, s: false, d: false, space: false, c: false, shift: false };
 let savedCam = { pos: new THREE.Vector3(0, 3, 0), quat: new THREE.Quaternion() };
 let editorGizmoDragging = false;
-
-// Movement mode: 'gizmo' | 'drag'
 let moveMode = 'gizmo';
-// Drag-move state
 let dragState = null;
 
 editorControl = new THREE.TransformControls(camera, renderer.domElement);
@@ -1056,9 +1053,7 @@ editorControl.addEventListener('mouseDown', () => {
 });
 editorControl.addEventListener('mouseUp', () => { setTimeout(() => { editorGizmoDragging = false; dragSnapshot = null; }, 0); saveEditorScene(true); });
 
-/* =====================================================================
-   LOCAL ASSET CACHE
-   ===================================================================== */
+/* ===================== LOCAL ASSET CACHE ===================== */
 const ASSET_CACHE_KEY = 'ultimateFishingAssetCacheV1';
 const ASSET_URL_RE = /\.(glb|gltf|bin|png|jpe?g|webp|gif|bmp|tga|dds|ktx2|mtl|obj|fbx|hdr)(\?.*)?$/i;
 const MAX_CACHE_ENTRY = 8 * 1024 * 1024;
@@ -1091,7 +1086,6 @@ function updateCacheInfo() {
   let bytes = 0; for (const k in assetCache) bytes += assetCache[k].length;
   el.textContent = n ? ('Cached: ' + n + ' file(s) · ' + (bytes / 1024).toFixed(0) + ' KB') : 'Cache: empty';
 }
-
 const _blobUrlCache = {};
 function _dataUrlToBlobUrl(dataUrl) {
   const comma = dataUrl.indexOf(',');
@@ -1218,9 +1212,9 @@ async function applySceneState(stateStr) {
   for (const entry of entries) {
     if (!entry) continue;
     if (entry.isPrimitive) {
-      createPrimitive(entry.primitiveType, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow });
+      createPrimitive(entry.primitiveType, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow, userHidden: entry.userHidden });
     } else if (entry.specialRole) {
-      createSpecialBox(entry.specialRole, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow });
+      createSpecialBox(entry.specialRole, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow, userHidden: entry.userHidden });
     } else if (entry.isPrePlaced) {
       const found = editorModels.find(m => m.isPrePlaced && m.prePlacedId === entry.prePlacedId);
       if (found) {
@@ -1230,6 +1224,7 @@ async function applySceneState(stateStr) {
         if (entry.color && found.object.material && found.object.material.color) found.object.material.color.set(entry.color);
         if (entry.noCollision !== undefined) found.object.userData.noCollision = entry.noCollision;
         if (entry.noShadow !== undefined) { found.object.userData.noShadow = entry.noShadow; applyShadowState(found.object); }
+        if (entry.userHidden !== undefined) found.object.userData.userHidden = entry.userHidden;
       }
     } else if (entry.url) {
       promises.push(new Promise(res => restoreModelEntry(entry, () => res())));
@@ -1292,7 +1287,8 @@ function serializeObject(m) {
     scale: [f(s.x), f(s.y), f(s.z)],
     color: color,
     noCollision: !!m.object.userData.noCollision,
-    noShadow: !!m.object.userData.noShadow
+    noShadow: !!m.object.userData.noShadow,
+    userHidden: !!m.object.userData.userHidden
   };
   if (m.specialRole) base.specialRole = m.specialRole;
   if (m.isPrimitive) { base.primitiveType = m.primitiveType; base.primitiveArgs = m.primitiveArgs; }
@@ -1306,7 +1302,7 @@ function saveEditorScene(immediate) {
   const doSave = () => {
     try {
       const data = editorModels.map(serializeObject);
-      localStorage.setItem(EDITOR_SCENE_KEY, JSON.stringify({ version: 2, savedAt: Date.now(), models: data }));
+      localStorage.setItem(EDITOR_SCENE_KEY, JSON.stringify({ version: 3, savedAt: Date.now(), models: data }));
       showSavedIndicator();
     } catch (e) { console.warn('[editor] save failed', e); }
     pushHistory();
@@ -1331,7 +1327,9 @@ function restoreModelEntry(entry, onComplete) {
       obj.userData.url = entry.url;
       obj.userData.noCollision = !!entry.noCollision;
       obj.userData.noShadow = !!entry.noShadow;
+      obj.userData.userHidden = !!entry.userHidden;
       applyShadowState(obj);
+      if (entry.userHidden) obj.visible = false;
       if (!obj.parent) scene.add(obj);
       editorModels.push({ name: entry.name, assetPath: entry.assetPath, url: entry.url, object: obj, isPrimitive: false });
     } catch (e) {}
@@ -1352,9 +1350,9 @@ async function loadEditorScene() {
     let restoredCount = 0, failedCount = 0;
     for (const entry of saved.models) {
       if (entry.isPrimitive) {
-        try { createPrimitive(entry.primitiveType, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow }); restoredCount++; } catch (e) { failedCount++; }
+        try { createPrimitive(entry.primitiveType, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow, userHidden: entry.userHidden }); restoredCount++; } catch (e) { failedCount++; }
       } else if (entry.specialRole) {
-        try { createSpecialBox(entry.specialRole, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow }); restoredCount++; } catch (e) { failedCount++; }
+        try { createSpecialBox(entry.specialRole, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow, userHidden: entry.userHidden }); restoredCount++; } catch (e) { failedCount++; }
       } else if (entry.isPrePlaced) {
         const found = editorModels.find(m => m.isPrePlaced && m.prePlacedId === entry.prePlacedId);
         if (found) {
@@ -1364,6 +1362,7 @@ async function loadEditorScene() {
           if (entry.color && found.object.material && found.object.material.color) found.object.material.color.set(entry.color);
           if (entry.noCollision !== undefined) found.object.userData.noCollision = entry.noCollision;
           if (entry.noShadow !== undefined) { found.object.userData.noShadow = entry.noShadow; applyShadowState(found.object); }
+          if (entry.userHidden !== undefined) { found.object.userData.userHidden = entry.userHidden; found.object.visible = !entry.userHidden; }
           restoredCount++;
         }
       } else if (entry.url) {
@@ -1572,7 +1571,9 @@ function createSpecialBox(role, opts) {
   mesh.userData.url = '';
   mesh.userData.noCollision = !!opts.noCollision;
   mesh.userData.noShadow = !!opts.noShadow;
+  mesh.userData.userHidden = !!opts.userHidden;
   applyShadowState(mesh);
+  if (opts.userHidden) mesh.visible = false;
   scene.add(mesh);
   editorModels.push({ name, assetPath: 'special:' + role, url: '', object: mesh, isPrimitive: false, specialRole: role });
   if (!opts.silent) { refreshEditorSceneList(); editorSelect(mesh); editorToast('Added ' + def.short); saveEditorScene(true); }
@@ -1590,11 +1591,7 @@ function ensureDefaultSpawnPoint() {
   if (editorModels.some(m => m.specialRole === 'spawn')) return;
   const gy = (typeof islandHeightAt === 'function' ? islandHeightAt(0, 0) : null);
   const y = (gy != null ? gy : ISLAND_TOP_H * ISLAND_SCALE) + 1;
-  createSpecialBox('spawn', {
-    position: [0, y, 0],
-    name: 'SpawnPoint',
-    silent: true
-  });
+  createSpecialBox('spawn', { position: [0, y, 0], name: 'SpawnPoint', silent: true });
   saveEditorScene(true);
 }
 
@@ -1619,19 +1616,14 @@ function setBoxOpacity(obj, opacity) {
 
 function updateSpecialBoxVisuals(inEditor) {
   editorModels.forEach(m => {
-    if (!m.specialRole) return;
+    // Universal userHidden override — hides everywhere, even in editor
     if (m.object.userData.userHidden) { m.object.visible = false; return; }
+    if (!m.specialRole) return;
     const isSelected = editorSelection.indexOf(m.object) >= 0;
     if (inEditor) {
-      if (m.specialRole === 'sell') {
-        // Red box: only visible when selected in editor
-        m.object.visible = isSelected;
-      } else {
-        m.object.visible = true;
-        setBoxOpacity(m.object, isSelected ? 1.0 : 0.4);
-      }
+      if (m.specialRole === 'sell') m.object.visible = isSelected;
+      else { m.object.visible = true; setBoxOpacity(m.object, isSelected ? 1.0 : 0.4); }
     } else {
-      // In game: sell + spawn invisible, bait shop visible
       if (m.specialRole === 'sell' || m.specialRole === 'spawn') m.object.visible = false;
       else { m.object.visible = true; setBoxOpacity(m.object, 1.0); }
     }
@@ -1688,7 +1680,9 @@ function createPrimitive(type, opts) {
   mesh.userData.assetPath = 'primitive:' + type; mesh.userData.url = '';
   mesh.userData.noCollision = !!opts.noCollision;
   mesh.userData.noShadow = !!opts.noShadow;
+  mesh.userData.userHidden = !!opts.userHidden;
   applyShadowState(mesh);
+  if (opts.userHidden) mesh.visible = false;
   scene.add(mesh);
   editorModels.push({ name, assetPath: 'primitive:' + type, url: '', object: mesh, isPrimitive: true, primitiveType: type, primitiveArgs: defaults[type] });
   if (!opts.silent) { refreshEditorSceneList(); editorSelect(mesh); editorToast('Added ' + name); saveEditorScene(true); }
@@ -1819,15 +1813,16 @@ function refreshEditorSceneList() {
   el.innerHTML = '';
   editorModels.forEach(m => {
     const row = document.createElement('div');
-    row.className = 'ed-item' + (editorSelection.indexOf(m.object) >= 0 ? ' sel' : '');
+    row.className = 'ed-item' + (editorSelection.indexOf(m.object) >= 0 ? ' sel' : '') + (m.object.userData.userHidden ? ' hidden' : '');
     const tag = m.specialRole ? ' ◈' : '';
-    row.innerHTML = `<span class="nm">${m.name}${tag}</span><button class="mini">${m.object.visible ? '👁' : '🚫'}</button><button class="mini">✕</button>`;
+    row.innerHTML = `<span class="nm">${m.name}${tag}</span><button class="mini">${m.object.userData.userHidden ? '🚫' : '👁'}</button><button class="mini">✕</button>`;
     row.onclick = (e) => editorSelect(m.object, e.shiftKey || e.ctrlKey || e.metaKey || multiSelectMode);
     const [eye, del] = row.querySelectorAll('.mini');
     eye.onclick = e => {
       e.stopPropagation();
       m.object.userData.userHidden = !m.object.userData.userHidden;
       m.object.visible = !m.object.userData.userHidden;
+      if (editorMode) updateSpecialBoxVisuals(true);
       refreshEditorSceneList(); saveEditorScene(true);
     };
     del.onclick = e => { e.stopPropagation(); editorRemoveModel(m); };
@@ -1896,14 +1891,22 @@ function syncEditorPropsFromObj() {
   updatePerObjButtons();
 }
 function updatePerObjButtons() {
-  const c = $('ed-obj-collision'), s = $('ed-obj-shadows');
-  if (!c || !s) return;
-  const noCol = editorSelected ? !!editorSelected.userData.noCollision : false;
-  const noSh  = editorSelected ? !!editorSelected.userData.noShadow   : false;
-  c.textContent = '🚶 Coll: ' + (noCol ? 'OFF' : 'ON');
-  c.className = 'ed-btn ' + (noCol ? 'tog-off' : 'tog-on');
-  s.textContent = '☀ Shad: ' + (noSh ? 'OFF' : 'ON');
-  s.className = 'ed-btn ' + (noSh ? 'tog-off' : 'tog-on');
+  const c = $('ed-obj-collision'), s = $('ed-obj-shadows'), v = $('ed-obj-visible');
+  if (c) {
+    const noCol = editorSelected ? !!editorSelected.userData.noCollision : false;
+    c.textContent = '🚶 Coll: ' + (noCol ? 'OFF' : 'ON');
+    c.className = 'ed-btn ' + (noCol ? 'tog-off' : 'tog-on');
+  }
+  if (s) {
+    const noSh = editorSelected ? !!editorSelected.userData.noShadow : false;
+    s.textContent = '☀ Shad: ' + (noSh ? 'OFF' : 'ON');
+    s.className = 'ed-btn ' + (noSh ? 'tog-off' : 'tog-on');
+  }
+  if (v) {
+    const hidden = editorSelected ? !!editorSelected.userData.userHidden : false;
+    v.textContent = hidden ? '🚫 Hidden' : '👁 Visible: YES';
+    v.className = 'ed-btn ' + (hidden ? 'tog-off' : 'tog-on');
+  }
 }
 function edBind(id, fn) { const el = $(id); el.addEventListener('input', () => { if (editorSelected) { fn(parseFloat(el.value) || 0); editorSelection.forEach((obj, i) => { if (editorBoxes[i]) editorBoxes[i].setFromObject(obj); }); saveEditorScene(); } }); el.addEventListener('blur', () => { if (editorSelected) syncEditorPropsFromObj(); }); }
 edBind('ed-px', v => editorSelected.position.x = v);
@@ -1941,22 +1944,18 @@ $('ed-del').onclick = () => {
   updateSelectionVisuals(); $('ed-sel-count').textContent = '0';
 };
 document.querySelectorAll('.ed-btn.mode').forEach(btn => { btn.onclick = () => { document.querySelectorAll('.ed-btn.mode').forEach(b => b.classList.remove('on')); btn.classList.add('on'); editorControl.setMode(btn.dataset.mode); }; });
-
-// Movement mode toggle
 document.querySelectorAll('.ed-btn.mode-mv').forEach(btn => {
   btn.onclick = () => {
     document.querySelectorAll('.ed-btn.mode-mv').forEach(b => b.classList.remove('on'));
     btn.classList.add('on');
     moveMode = btn.dataset.mvmode;
     updateSelectionVisuals();
-    editorToast('Move mode: ' + (moveMode === 'gizmo' ? 'Gizmo' : 'Drag (Ctrl+L)'));
+    editorToast('Move mode: ' + (moveMode === 'gizmo' ? 'Gizmo' : 'Drag'));
   };
 });
-
 $('ed-multiselect-toggle').onclick = () => { multiSelectMode = !multiSelectMode; const btn = $('ed-multiselect-toggle'); btn.classList.toggle('on', multiSelectMode); btn.textContent = (multiSelectMode ? '☑' : '☐') + ' Multi-Select: ' + (multiSelectMode ? 'ON' : 'OFF'); editorToast(multiSelectMode ? 'Multi-select ON' : 'Multi-select OFF'); };
 $('ed-collision-toggle').onclick = () => { collisionEnabled = !collisionEnabled; const btn = $('ed-collision-toggle'); btn.classList.toggle('on', collisionEnabled); btn.textContent = '🚶 Collision System: ' + (collisionEnabled ? 'ON' : 'OFF'); editorToast(collisionEnabled ? 'Collision System ON' : 'Collision System OFF'); };
 
-// Global collision / shadows
 let globalShadowsOn = true, globalCollisionOn = true;
 function updateGlobalButtons() {
   const c = $('ed-global-collision'), s = $('ed-global-shadows');
@@ -1978,7 +1977,6 @@ $('ed-global-shadows').onclick = () => {
   editorToast('All objects shadows: ' + (globalShadowsOn ? 'ON' : 'OFF'));
 };
 
-// Per-object collision / shadows
 $('ed-obj-collision').onclick = () => {
   if (!editorSelection.length) return;
   editorSelection.forEach(o => { o.userData.noCollision = !o.userData.noCollision; });
@@ -1990,6 +1988,16 @@ $('ed-obj-shadows').onclick = () => {
   editorSelection.forEach(o => { o.userData.noShadow = !o.userData.noShadow; applyShadowState(o); });
   updatePerObjButtons(); saveEditorScene(true);
   editorToast('Object shadows: ' + (editorSelection[0].userData.noShadow ? 'OFF' : 'ON'));
+};
+$('ed-obj-visible').onclick = () => {
+  if (!editorSelection.length) return;
+  editorSelection.forEach(o => {
+    o.userData.userHidden = !o.userData.userHidden;
+    o.visible = !o.userData.userHidden;
+  });
+  updateSpecialBoxVisuals(editorMode);
+  updatePerObjButtons(); refreshEditorSceneList(); saveEditorScene(true);
+  editorToast(editorSelection[0].userData.userHidden ? 'Object hidden' : 'Object visible');
 };
 
 $('ed-scan').onclick = () => editorScanRepo(false);
@@ -2136,7 +2144,6 @@ function updateEditorCamera(dt) {
 }
 const canvasEl = renderer.domElement;
 
-// Drag-move helpers
 const _dragPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
 const _dragHit = new THREE.Vector3();
 const _dragStartHit = new THREE.Vector3();
@@ -2156,13 +2163,10 @@ function setupDragMove(e) {
   const additive = multiSelectMode || e.shiftKey || e.ctrlKey || e.metaKey;
   if (!editorSelection.includes(obj)) editorSelect(obj, additive);
   if (!editorSelection.length) return false;
-  // Plane at the object's Y
   const objPos = editorSelected.getWorldPosition(new THREE.Vector3());
   _dragPlane.set(new THREE.Vector3(0, 1, 0), -objPos.y);
   if (!editorRaycaster.ray.intersectPlane(_dragPlane, _dragStartHit)) return false;
-  dragState = {
-    startPositions: editorSelection.map(o => o.position.clone())
-  };
+  dragState = { startPositions: editorSelection.map(o => o.position.clone()) };
   return true;
 }
 function updateDragMove(e) {
@@ -2173,9 +2177,7 @@ function updateDragMove(e) {
   editorRaycaster.setFromCamera(editorNDC, camera);
   if (!editorRaycaster.ray.intersectPlane(_dragPlane, _dragHit)) return;
   _dragDelta.copy(_dragHit).sub(_dragStartHit);
-  editorSelection.forEach((obj, i) => {
-    obj.position.copy(dragState.startPositions[i]).add(_dragDelta);
-  });
+  editorSelection.forEach((obj, i) => { obj.position.copy(dragState.startPositions[i]).add(_dragDelta); });
   editorSelection.forEach((obj, i) => { if (editorBoxes[i]) editorBoxes[i].setFromObject(obj); });
   syncEditorPropsFromObj();
 }
@@ -2326,27 +2328,17 @@ function animate() {
     camera.position.y += ((baseY + bobOffset) - camera.position.y) * Math.min(1, dt * 10);
   }
 
-  /* ---- special box proximity / button text ---- */
   nearbySpecial = null;
   if (state === 'idle') {
     let best = 4.5;
     for (const m of editorModels) {
-      if (!m.specialRole || !m.object.visible || !m.object.parent) continue;
-      if (m.specialRole === 'sell') continue; // red is invisible but still interactive via proximity
-      m.object.getWorldPosition(_spTmp);
-      const d = Math.hypot(_spTmp.x - camera.position.x, _spTmp.z - camera.position.z);
-      if (d < best) { best = d; nearbySpecial = m; }
-    }
-    // Red box proximity even when invisible
-    for (const m of editorModels) {
-      if (m.specialRole !== 'sell') continue;
-      if (!m.object.parent) continue;
+      if (!m.specialRole || !m.object.parent) continue;
+      if (m.object.userData.userHidden) continue;
       m.object.getWorldPosition(_spTmp);
       const d = Math.hypot(_spTmp.x - camera.position.x, _spTmp.z - camera.position.z);
       if (d < best) { best = d; nearbySpecial = m; }
     }
   }
-  // Button text reflects nearby special
   if (state === 'idle') {
     if (nearbySpecial && nearbySpecial.specialRole === 'sell') {
       actionBtn.innerText = 'MARKET';
@@ -2362,7 +2354,6 @@ function animate() {
       actionBtn.style.background = 'linear-gradient(135deg,#00c6ff,#0072ff)';
     }
   }
-  // Hide interaction-msg entirely for special boxes
   msg.style.display = 'none';
 
   const fishing = state === 'casting' || state === 'hooked' || state === 'minigame';
