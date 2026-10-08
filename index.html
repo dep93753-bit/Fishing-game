@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Ultimate Fishing + Scene Editor</title>
+<title>Ultimate Fishing + Scene Editor + Boat</title>
 <style>
 body,html{margin:0;padding:0;overflow:hidden;background:#bfe3f2;font-family:'Segoe UI',Tahoma,Verdana,sans-serif;user-select:none;touch-action:none}
 #game-canvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
@@ -21,6 +21,9 @@ body,html{margin:0;padding:0;overflow:hidden;background:#bfe3f2;font-family:'Seg
 #joystick-knob{position:absolute;top:45px;left:45px;width:50px;height:50px;background:rgba(255,255,255,.9);border-radius:50%;pointer-events:none;box-shadow:0 4px 15px rgba(0,0,0,.5)}
 #action-btn{position:absolute;bottom:40px;right:40px;width:110px;height:110px;background:linear-gradient(135deg,#00c6ff,#0072ff);color:#fff;border-radius:50%;border:4px solid rgba(255,255,255,.8);font-weight:bold;font-size:18px;box-shadow:0 8px 25px rgba(0,114,255,.6);pointer-events:auto;cursor:pointer;transition:transform .1s;text-shadow:1px 1px 2px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;text-align:center}
 #action-btn:active{transform:scale(.9)}
+#boost-btn{position:absolute;bottom:170px;right:55px;width:80px;height:80px;background:linear-gradient(135deg,#ffb84d,#ff8c00);color:#fff;border-radius:50%;border:4px solid rgba(255,255,255,.8);font-weight:bold;font-size:14px;box-shadow:0 8px 25px rgba(255,140,0,.6);pointer-events:auto;cursor:pointer;display:none;align-items:center;justify-content:center;text-align:center;text-shadow:1px 1px 2px rgba(0,0,0,.5)}
+#boost-btn:active{transform:scale(.9)}
+#boat-hud{display:none}
 #minigame-container{position:absolute;top:50%;right:8%;transform:translateY(-50%);width:40px;height:350px;background:rgba(0,0,0,.7);backdrop-filter:blur(5px);border:2px solid #444;border-radius:20px;display:none;pointer-events:none;overflow:hidden;box-shadow:0 0 20px rgba(0,0,0,.8)}
 #catch-bar{position:absolute;bottom:0;left:4px;width:32px;height:80px;background:rgba(0,255,0,.5);border:2px solid lime;border-radius:10px}
 #fish-line{position:absolute;bottom:0;left:0;width:100%;height:8px;background:#ff3333;box-shadow:0 0 10px red;border-radius:4px}
@@ -44,7 +47,7 @@ body,html{margin:0;padding:0;overflow:hidden;background:#bfe3f2;font-family:'Seg
 .rarity-ExtraRare{color:#BA68C8;text-shadow:0 0 8px rgba(186,104,200,.5)}.rarity-Epic{color:#F06292;text-shadow:0 0 12px rgba(240,98,146,.6)}
 .rarity-Legendary{color:#FFD54F;text-shadow:0 0 15px rgba(255,213,79,.8)}.rarity-Exotic{color:#0ff;text-shadow:0 0 20px #0ff;font-weight:900;letter-spacing:1px}
 #alert-box{position:absolute;top:15%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.85);backdrop-filter:blur(5px);color:#fff;padding:15px 30px;border-radius:12px;font-size:18px;font-weight:bold;text-align:center;display:none;pointer-events:none;z-index:5;border:1px solid rgba(255,255,255,.2);box-shadow:0 10px 20px rgba(0,0,0,.5)}
-body.editor #joystick-zone,body.editor #action-btn,body.editor #hud,
+body.editor #joystick-zone,body.editor #action-btn,body.editor #hud,body.editor #boost-btn,
 body.editor #crosshair,body.editor #interaction-msg{display:none!important}
 #editor-toggle{position:absolute;top:20px;right:20px;z-index:50;background:rgba(15,25,35,.7);backdrop-filter:blur(12px);color:#fff;border:1px solid rgba(255,255,255,.18);padding:10px 18px;border-radius:12px;font-weight:800;letter-spacing:1px;font-size:13px;cursor:pointer;pointer-events:auto;transition:.15s;box-shadow:0 8px 24px rgba(0,0,0,.4)}
 #editor-toggle:hover{background:rgba(0,198,255,.35);border-color:#00c6ff}
@@ -72,6 +75,7 @@ body.editor #editor-panel{display:block}
 .ed-btn.special-sell{background:linear-gradient(135deg,#ff6b6b,#c0392b);color:#fff;border:none;box-shadow:0 4px 14px rgba(255,85,85,.35)}
 .ed-btn.special-shop{background:linear-gradient(135deg,#00c6ff,#0072ff);color:#fff;border:none;box-shadow:0 4px 14px rgba(0,114,255,.35)}
 .ed-btn.special-spawn{background:linear-gradient(135deg,#38ef7d,#11998e);color:#04220f;border:none;box-shadow:0 4px 14px rgba(56,239,125,.35)}
+.ed-btn.special-boat{background:linear-gradient(135deg,#ffb84d,#ff8c00);color:#3a2400;border:none;box-shadow:0 4px 14px rgba(255,184,77,.35)}
 .ed-btn.tog-on{background:linear-gradient(135deg,#38ef7d,#11998e);color:#04220f;border:none;box-shadow:0 4px 14px rgba(56,239,125,.35);font-weight:900}
 .ed-btn.tog-off{background:rgba(255,85,102,.16);border:1px solid #ff5566;color:#ff5566}
 .ed-modes{display:flex;gap:5px;margin-bottom:6px}
@@ -156,6 +160,8 @@ body.editor #ed-alt-btns{display:flex}
 #ed-toast{position:fixed;top:76px;left:50%;transform:translate(-50%,-12px);z-index:300;background:rgba(0,0,0,.9);border:1px solid rgba(255,255,255,.15);color:#fff;padding:9px 20px;border-radius:10px;font-size:12.5px;font-weight:600;opacity:0;pointer-events:none;transition:.25s}
 #ed-toast.on{opacity:1;transform:translate(-50%,0)}
 #ed-cache-info{font-size:10px;color:#8b98a8;margin-top:6px;letter-spacing:.3px}
+#ed-boat-file{display:none}
+.boat-tip{font-size:10px;color:#8b98a8;margin-top:4px;line-height:1.4}
 @media(max-width:640px){#editor-panel{width:240px;font-size:11.5px;padding:12px}#ed-joystick-zone{width:130px;height:130px;bottom:24px;left:20px}#ed-joystick-knob{width:44px;height:44px;top:43px;left:43px}#ed-alt-btns{bottom:30px;right:24px;gap:12px}#ed-alt-btns button{width:64px;height:64px;font-size:22px}#editor-debug{font-size:13px;padding:16px}#editor-debug h2{font-size:20px}}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -186,7 +192,7 @@ body.editor #ed-alt-btns{display:flex}
 <div id="game-container">
   <canvas id="game-canvas"></canvas>
   <div id="ui-layer">
-    <div id="hud">💰 $<span id="money">0</span><br>🎣 <span id="current-rod">Classic</span></div>
+    <div id="hud">💰 $<span id="money">0</span><br>🎣 <span id="current-rod">Classic</span><br><span id="boat-hud">⛵ <span id="boat-speed">0</span> km/h</span></div>
     <div id="crosshair"></div>
     <div id="interaction-msg">Station</div>
     <div id="alert-box"></div>
@@ -201,6 +207,7 @@ body.editor #ed-alt-btns{display:flex}
     </div>
     <div id="joystick-zone"><div id="joystick-knob"></div></div>
     <button id="action-btn">CAST</button>
+    <button id="boost-btn">⚡<br>BOOST</button>
     <div id="shop-modal" class="modal">
       <div class="modal-header"><h2>Tackle Shop</h2><button class="close-btn" onclick="closeModal('shop-modal')">Close</button></div>
       <h3 style="color:#00c6ff;margin-bottom:10px">Fishing Rods</h3>
@@ -273,6 +280,15 @@ body.editor #ed-alt-btns{display:flex}
     <button class="ed-btn special-shop"  id="ed-special-shop">🔵 Bait</button>
     <button class="ed-btn special-spawn" id="ed-special-spawn">🟢 Spawn</button>
   </div>
+
+  <div class="ed-sep"></div>
+  <h4>Boat System</h4>
+  <button class="ed-btn special-boat" id="ed-boat-focus">⛵ Select Boat</button>
+  <button class="ed-btn" id="ed-boat-assign">🎯 Assign Selected GLB → Boat</button>
+  <button class="ed-btn" id="ed-boat-reset">↺ Reset Boat to Built-in Model</button>
+  <button class="ed-btn" id="ed-boat-respawn">📍 Move Boat to Spawn</button>
+  <div class="boat-tip">Select a loaded GLB in the list, then tap "Assign". The red box stays as the seat marker. Use transform mode to move/rotate/scale the boat GLB freely — the seat box scales with it.</div>
+  <button class="ed-btn" id="ed-boat-seat-toggle">👁 Seat Marker: ON</button>
 
   <div class="ed-sep"></div>
   <h4>Add Primitive</h4>
@@ -446,39 +462,16 @@ const rods = [
 const SAVE_KEY = 'ultimateFishingSaveLite';
 const PRESCENE_KEY = 'ultimateFishingPreScene';
 const EDITOR_SCENE_KEY = 'ultimateFishingEditorScene';
+const BOAT_SAVE_KEY = 'ultimateFishingBoatV2';
 
 /* ===================== DEFAULT SCENE ===================== */
 const DEFAULT_SCENE_DATA = [
-  { type:'model', name:'Island', path:'preplaced:island', position:[37.423, 0, -2.469], rotation:[0, 0, 0], scale:[1, 1, 1] },
-  { type:'model', name:'Grass', path:'preplaced:grass', position:[-36.857, 0, 2.062], rotation:[0, 0, 0], scale:[1, 1, 1] },
-  { type:'model', name:'Sand', path:'preplaced:sand', position:[-36.857, 0, 2.062], rotation:[0, 0, 0], scale:[1, 1, 1] },
-  { type:'model', name:'Water', path:'preplaced:water', position:[-74.961, -0.513, 44.953], rotation:[0, 0, 0], scale:[1, 1, 1] },
-  { type:'primitive', shape:'box', args:[1, 1, 1], color:'#ff6b6b', name:'Box_1', position:[11.088, 1.747, 13.399], rotation:[0, -61.249, 0], scale:[15.139, 0.213, 3.079] },
-  { type:'specialBox', role:'sell', color:'#ff3b3b', name:'FishMarket_1', position:[0, 10.779, 16.938], rotation:[0, 0, 0], scale:[1, 1, 1] },
-  { type:'specialBox', role:'shop', color:'#2b7bff', name:'BaitShop_1', position:[5.383, 2.106, 1.056], rotation:[0, -47.785, 0], scale:[4.083, 9.087, -0.345] },
-  { type:'specialBox', role:'sell', color:'#ff3b3b', name:'FishMarket_2', position:[-6.835, 2.296, -4.243], rotation:[0, -24.007, 0], scale:[0.867, 2.721, 2.538] },
-  { type:'model', name:'MarketStand_1', path:'assets/MarketStand_1.gltf', position:[-7.499, 1.746, -4.861], rotation:[0, -31.226, 0], scale:[2.894, 2.894, 2.894] },
-  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[-6.195, 1.765, -4.155], rotation:[0, -19.022, 0], scale:[1.666, 1.666, 1.666] },
-  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY_copy', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[-4.684, 1.765, -2.842], rotation:[0, -37.643, 0], scale:[1.666, 1.666, 1.666] },
-  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY_copy_copy', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[-3.1, 1.765, -1.441], rotation:[0, -24.351, 0], scale:[1.666, 1.666, 1.666] },
-  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY_copy_copy_copy', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[-1.239, 1.765, -0.206], rotation:[0, -19.309, 0], scale:[1.666, 1.666, 1.666] },
-  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY_copy_copy_copy_copy', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[0.817, 1.765, 0.736], rotation:[0, -19.309, 0], scale:[1.666, 1.666, 1.666] },
-  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY_copy_copy_copy_copy_copy', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[2.792, 1.765, 1.638], rotation:[0, -19.309, 0], scale:[1.666, 1.666, 1.666] },
-  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY_copy_copy_copy_copy_copy_copy', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[4.495, 1.765, 2.415], rotation:[0, -19.309, 0], scale:[1.666, 1.666, 1.666] },
-  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY_copy_copy_copy_copy_copy_copy_copy', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[5.798, 1.765, 3.676], rotation:[0, -47.727, 0], scale:[1.666, 1.666, 1.666] },
-  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY_copy_copy_copy_copy_copy_copy_copy_copy', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[6.931, 1.765, 5.424], rotation:[0, -47.727, 0], scale:[1.666, 1.666, 1.666] },
-  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY_copy_copy_copy_copy_copy_copy_copy_copy_copy', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[7.818, 1.765, 7.299], rotation:[0, -47.727, 0], scale:[1.666, 1.666, 1.666] },
-  { type:'model', name:'scene 7', path:'assets/scene 7.glb', position:[24.598, -1.81, 6.991], rotation:[0.974, -61.249, 0], scale:[3.562, 3.562, 3.562] },
-  { type:'model', name:'scene 7_copy', path:'assets/scene 7.glb', position:[27.837, -1.81, 12.931], rotation:[0, -61.249, 0], scale:[3.562, 3.562, 3.562] },
-  { type:'model', name:'scene 3', path:'assets/scene 3.glb', position:[-2.342, 2.159, 0.701], rotation:[0, 0, 0], scale:[2.033, 2.033, 2.033] },
-  { type:'model', name:'scene 3_copy', path:'assets/scene 3.glb', position:[12.953, 2.159, -1.438], rotation:[0, 88.064, 0], scale:[2.033, 2.033, 2.033] },
-  { type:'model', name:'scene 4', path:'assets/scene 4.glb', position:[-10.397, 1.385, 19.273], rotation:[0, 81.99, 0], scale:[1.5, 1.5, 1.5] },
-  { type:'model', name:'scene 4_copy', path:'assets/scene 4.glb', position:[-2.909, 1.385, 9.783], rotation:[-180.023, 62.051, -180.023], scale:[1.5, 1.5, 1.5] },
-  { type:'model', name:'scene 5', path:'assets/scene 5.glb', position:[-4.824, 1.894, -5.309], rotation:[0, 0, 0], scale:[1.634, 1.634, 1.634] },
-  { type:'model', name:'scene 5_copy', path:'assets/scene 5.glb', position:[4.308, 1.894, 1.33], rotation:[0, 0, 0], scale:[1.512, 1.512, 1.512] },
-  { type:'model', name:'scene 5_copy_copy', path:'assets/scene 5.glb', position:[-5.372, 1.894, -14.78], rotation:[0, 0, 0], scale:[1.512, 1.512, 1.512] },
-  { type:'model', name:'Characters_Sharky', path:'assets/Characters_Sharky.gltf', position:[-8.971, 1.782, -5.969], rotation:[0, 57.983, 0], scale:[1.802, 1.608, 1.802] },
-  { type:'model', name:'Environment_House3', path:'assets/Environment_House3.gltf', position:[6.668, 1.642, -0.266], rotation:[0, -47.785, 0], scale:[1.221, 1.221, 1.221] }
+  { type:'model', name:'Island', path:'preplaced:island', position:[0, 0, 0], rotation:[0, 0, 0], scale:[1, 1, 1] },
+  { type:'model', name:'Grass', path:'preplaced:grass', position:[0, 0, 0], rotation:[0, 0, 0], scale:[1, 1, 1] },
+  { type:'model', name:'Sand', path:'preplaced:sand', position:[0, 0, 0], rotation:[0, 0, 0], scale:[1, 1, 1] },
+  { type:'model', name:'Water', path:'preplaced:water', position:[0, -0.513, 0], rotation:[0, 0, 0], scale:[1, 1, 1] },
+  { type:'model', name:'Dock', path:'preplaced:dock', position:[22, 0, 8], rotation:[0, -1.05, 0], scale:[1, 1, 1] },
+  { type:'model', name:'Boat', path:'preplaced:boat', position:[24, 0.3, 4], rotation:[0, -1.05, 0], scale:[1, 1, 1] }
 ];
 
 function saveGame() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({money, inventory, fishIndex, totalCaughtCount, rodsOwned: rods.map(r => r.owned), currentRodIndex})); } catch (e) {} updateHUD(); }
@@ -916,6 +909,405 @@ function checkHorizontalCollision(pos) {
   return false;
 }
 
+/* ===================== DOCK + BOAT ===================== */
+const DOCK_POSITION = new THREE.Vector3(22, 0, 8);
+const DOCK_ROTATION = -1.05;
+const BOAT_SPAWN = new THREE.Vector3(24.5, 0.3, 3.0);
+const BOAT_SPAWN_HEADING = -1.05;
+const BOAT_MAX_SPEED = 9;
+const BOAT_BOOST_MULT = 2.2;
+const BOAT_ACCEL = 6.5;
+const BOAT_REVERSE = 0.45;
+const BOAT_TURN_RATE = 1.6;
+const BOAT_DRAG = 1.6;
+
+let boatGroup = null;
+let boatVisual = null;        // Group that holds visual meshes (built-in OR GLB)
+let boatSeatMarker = null;    // red wireframe box at seat
+let boatState = 'docked';     // 'docked' | 'driving'
+let boatSpeed = 0;
+let boatHeading = BOAT_SPAWN_HEADING;
+let boatBoost = false;
+let boatSeatVisible = true;
+let dockGroup = null;
+
+function buildDock() {
+  if (dockGroup) return dockGroup;
+  dockGroup = new THREE.Group();
+  dockGroup.position.copy(DOCK_POSITION);
+  dockGroup.rotation.y = DOCK_ROTATION;
+
+  const wood = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.9 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x5c3a1a, roughness: 0.95 });
+  const rope = new THREE.MeshStandardMaterial({ color: 0xcfc19a, roughness: 1 });
+
+  // Main platform
+  const platform = new THREE.Mesh(new THREE.BoxGeometry(7, 0.25, 4), wood);
+  platform.position.y = 1.1; platform.castShadow = true; platform.receiveShadow = true;
+  dockGroup.add(platform);
+
+  // Planks
+  for (let i = -2.9; i <= 2.9; i += 0.55) {
+    const line = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.27, 4.02), dark);
+    line.position.set(i, 1.11, 0);
+    dockGroup.add(line);
+  }
+
+  // Support posts
+  for (const x of [-3, 0, 3]) for (const z of [-1.85, 1.85]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 3.2, 10), dark);
+    post.position.set(x, -0.5, z); post.castShadow = true;
+    dockGroup.add(post);
+  }
+
+  // Railing posts
+  for (const x of [-3.2, -1.6, 0, 1.6, 3.2]) {
+    const rp = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.8, 0.1), dark);
+    rp.position.set(x, 1.65, 1.85); rp.castShadow = true;
+    dockGroup.add(rp);
+  }
+  // Rails
+  const rail1 = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.09, 0.09), wood);
+  rail1.position.set(0, 2.05, 1.85); dockGroup.add(rail1);
+  const rail2 = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.09, 0.09), wood);
+  rail2.position.set(0, 1.6, 1.85); dockGroup.add(rail2);
+
+  // Cleat / tie post
+  const cleat = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.5, 8), dark);
+  cleat.position.set(3.4, 1.4, -1.6); cleat.rotation.z = Math.PI / 2; cleat.castShadow = true;
+  dockGroup.add(cleat);
+
+  scene.add(dockGroup);
+  editorModels.push({ name: 'Dock', assetPath: 'preplaced:dock', url: '', object: dockGroup, isPrePlaced: true, prePlacedId: 'dock' });
+  return dockGroup;
+}
+
+function buildBuiltInBoat() {
+  const g = new THREE.Group();
+
+  // Hull - custom shape (extruded)
+  const hullShape = new THREE.Shape();
+  hullShape.moveTo(-1.9, -0.85);
+  hullShape.lineTo(1.4, -0.85);
+  hullShape.quadraticCurveTo(2.05, 0, 1.4, 0.85);
+  hullShape.lineTo(-1.9, 0.85);
+  hullShape.quadraticCurveTo(-2.15, 0, -1.9, -0.85);
+
+  const hullGeo = new THREE.ExtrudeGeometry(hullShape, { depth: 0.85, bevelEnabled: true, bevelSize: 0.08, bevelThickness: 0.08, bevelSegments: 2, curveSegments: 14 });
+  hullGeo.rotateX(-Math.PI / 2);
+  hullGeo.translate(0, 0, -0.425);
+  const hullMat = new THREE.MeshStandardMaterial({ color: 0xb33a2e, roughness: 0.75, metalness: 0.12, side: THREE.DoubleSide });
+  const hull = new THREE.Mesh(hullGeo, hullMat);
+  hull.castShadow = true; hull.receiveShadow = true;
+  g.add(hull);
+
+  // Inner deck floor (light wood)
+  const deckMat = new THREE.MeshStandardMaterial({ color: 0xd8a877, roughness: 0.9 });
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.08, 1.35), deckMat);
+  floor.position.y = 0.45;
+  floor.castShadow = true; floor.receiveShadow = true;
+  g.add(floor);
+
+  // Front bow trim
+  const bowTrim = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.12, 0.14), new THREE.MeshStandardMaterial({ color: 0x5c3a1a, roughness: 0.9 }));
+  bowTrim.position.set(0, 0.55, 0.68);
+  g.add(bowTrim);
+  const bowTrim2 = bowTrim.clone(); bowTrim2.position.z = -0.68; g.add(bowTrim2);
+
+  // Side rails
+  for (const s of [1, -1]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.12, 0.1), new THREE.MeshStandardMaterial({ color: 0x5c3a1a }));
+    rail.position.set(0, 0.55, s * 0.72);
+    g.add(rail);
+  }
+
+  // Bench seat (wooden)
+  const benchMat = new THREE.MeshStandardMaterial({ color: 0x5c3a1a, roughness: 0.95 });
+  const bench = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.14, 1.15), benchMat);
+  bench.position.set(-0.9, 0.62, 0);
+  bench.castShadow = true;
+  g.add(bench);
+
+  // Small console / dashboard
+  const dash = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.55, 1.15), new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.6 }));
+  dash.position.set(0.7, 0.7, 0);
+  dash.castShadow = true;
+  g.add(dash);
+
+  // Steering wheel
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5 });
+  const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.03, 8, 16), wheelMat);
+  wheel.position.set(0.55, 0.9, 0); wheel.rotation.y = Math.PI / 2;
+  g.add(wheel);
+  const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.03, 0.03), wheelMat);
+  spoke.position.copy(wheel.position); spoke.rotation.y = Math.PI / 2;
+  g.add(spoke);
+
+  // Motor / outboard at stern
+  const motor = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.75, 0.4), new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.75, roughness: 0.3 }));
+  motor.position.set(2.0, 0.75, 0);
+  motor.castShadow = true;
+  g.add(motor);
+  const motorTop = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.15, 0.42), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.6, roughness: 0.4 }));
+  motorTop.position.set(2.0, 1.18, 0);
+  g.add(motorTop);
+
+  // Small mast at bow
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.3, 8), new THREE.MeshStandardMaterial({ color: 0x3a2414, roughness: 0.8 }));
+  mast.position.set(-1.6, 1.15, 0);
+  mast.castShadow = true;
+  g.add(mast);
+
+  // Rope coil decoration
+  const coil = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.035, 6, 14), new THREE.MeshStandardMaterial({ color: 0xcfc19a, roughness: 1 }));
+  coil.position.set(-1.6, 0.5, 0); coil.rotation.x = Math.PI / 2;
+  g.add(coil);
+
+  g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return g;
+}
+
+function createBoat() {
+  boatGroup = new THREE.Group();
+  boatGroup.position.copy(BOAT_SPAWN);
+  boatGroup.rotation.y = BOAT_SPAWN_HEADING;
+  boatGroup.name = 'Boat';
+  boatGroup.userData.assetPath = 'preplaced:boat';
+  boatGroup.userData.isBoat = true;
+
+  boatVisual = buildBuiltInBoat();
+  boatGroup.add(boatVisual);
+
+  // Red seat marker — stays visible even after GLB replacement
+  const seatSize = new THREE.Vector3(1.1, 0.7, 1.3);
+  const seatGeo = new THREE.BoxGeometry(seatSize.x, seatSize.y, seatSize.z);
+  const seatFill = new THREE.Mesh(seatGeo, new THREE.MeshBasicMaterial({ color: 0xff2020, transparent: true, opacity: 0.18, depthWrite: false }));
+  const seatEdges = new THREE.EdgesGeometry(seatGeo);
+  const seatLines = new THREE.LineSegments(seatEdges, new THREE.LineBasicMaterial({ color: 0xff2020 }));
+  boatSeatMarker = new THREE.Group();
+  boatSeatMarker.add(seatFill);
+  boatSeatMarker.add(seatLines);
+  boatSeatMarker.position.set(-0.9, 0.95, 0);
+  boatSeatMarker.userData.isSeatMarker = true;
+  boatGroup.add(boatSeatMarker);
+
+  scene.add(boatGroup);
+  editorModels.push({ name: 'Boat', assetPath: 'preplaced:boat', url: '', object: boatGroup, isBoat: true, isPrePlaced: true, prePlacedId: 'boat' });
+  return boatGroup;
+}
+
+function updateSeatMarkerVisibility() {
+  if (!boatSeatMarker) return;
+  const show = editorMode ? boatSeatVisible : false;
+  boatSeatMarker.visible = show;
+  if (editorMode) updateSeatMarkerScale();
+}
+
+function updateSeatMarkerScale() {
+  if (!boatSeatMarker || !boatVisual) return;
+  // Keep marker size proportional to boat scale
+  const s = boatGroup.scale;
+  const inv = 1 / Math.max(0.01, s.x);
+  boatSeatMarker.scale.setScalar(1);
+}
+
+function saveBoatState() {
+  if (!boatGroup) return;
+  try {
+    localStorage.setItem(BOAT_SAVE_KEY, JSON.stringify({
+      position: boatGroup.position.toArray(),
+      rotation: [boatGroup.rotation.x, boatGroup.rotation.y, boatGroup.rotation.z],
+      scale: boatGroup.scale.toArray(),
+      heading: boatHeading,
+      seatOffset: boatSeatMarker ? boatSeatMarker.position.toArray() : null,
+      seatScale: boatSeatMarker ? boatSeatMarker.scale.toArray() : null,
+      visualPath: boatGroup.userData.boatVisualPath || null,
+      visualUrl: boatGroup.userData.boatVisualUrl || null,
+      seatVisible: boatSeatVisible
+    }));
+  } catch (e) {}
+}
+
+function loadBoatState() {
+  if (!boatGroup) return;
+  try {
+    const s = JSON.parse(localStorage.getItem(BOAT_SAVE_KEY));
+    if (!s) return;
+    if (s.position) boatGroup.position.fromArray(s.position);
+    if (s.rotation) boatGroup.rotation.set(s.rotation[0], s.rotation[1], s.rotation[2]);
+    if (s.scale) boatGroup.scale.fromArray(s.scale);
+    if (s.heading !== undefined) boatHeading = s.heading;
+    if (s.seatOffset && boatSeatMarker) boatSeatMarker.position.fromArray(s.seatOffset);
+    if (s.seatScale && boatSeatMarker) boatSeatMarker.scale.fromArray(s.seatScale);
+    if (s.seatVisible !== undefined) boatSeatVisible = s.seatVisible;
+    if (s.visualPath && s.visualUrl) {
+      loadBoatGLB(s.visualPath, s.visualUrl, true);
+    }
+  } catch (e) {}
+}
+
+function loadBoatGLB(assetPath, url, silent) {
+  if (!boatVisual) return;
+  const loader = new THREE.GLTFLoader(assetLoadingManager);
+  try { loader.setDRACOLoader(dracoLoader); } catch (e) {}
+  try { loader.setKTX2Loader(getKTX2Loader()); } catch (e) {}
+  currentAssetBaseURL = url.substring(0, url.lastIndexOf('/') + 1);
+  loader.load(url, gltf => {
+    // Clear current visual
+    while (boatVisual.children.length) {
+      const c = boatVisual.children[0];
+      boatVisual.remove(c);
+      c.traverse(o => {
+        if (o.isMesh) {
+          if (o.geometry) o.geometry.dispose();
+          if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(mm => { if (mm.map) mm.map.dispose(); mm.dispose(); });
+        }
+      });
+    }
+    gltf.scene.traverse(o => {
+      if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; }
+    });
+    boatVisual.add(gltf.scene);
+    boatGroup.userData.boatVisualPath = assetPath;
+    boatGroup.userData.boatVisualUrl = url;
+    boatGroup.userData.assetPath = 'preplaced:boat';
+    if (!silent) editorToast('⛵ Boat GLB applied');
+    saveBoatState();
+  }, undefined, err => {
+    console.error('[boat] GLB load failed', err);
+    if (!silent) editorToast('Failed to load boat GLB');
+  });
+}
+
+function resetBoatVisual() {
+  if (!boatVisual) return;
+  while (boatVisual.children.length) {
+    const c = boatVisual.children[0];
+    boatVisual.remove(c);
+    c.traverse(o => {
+      if (o.isMesh) {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(mm => { if (mm.map) mm.map.dispose(); mm.dispose(); });
+      }
+    });
+  }
+  boatVisual.add(buildBuiltInBoat());
+  boatGroup.userData.boatVisualPath = null;
+  boatGroup.userData.boatVisualUrl = null;
+  saveBoatState();
+  editorToast('↺ Built-in boat restored');
+}
+
+/* Boarding & driving */
+function isNearBoat() {
+  if (!boatGroup || boatState === 'driving') return false;
+  const dx = boatGroup.position.x - camera.position.x;
+  const dz = boatGroup.position.z - camera.position.z;
+  return Math.hypot(dx, dz) < 5.0;
+}
+
+function boardBoat() {
+  if (!boatGroup) return;
+  boatState = 'driving';
+  boatSpeed = 0;
+  // Point boat heading to match its current rotation on Y
+  boatHeading = boatGroup.rotation.y;
+  document.getElementById('boat-hud').style.display = 'inline';
+  document.getElementById('boost-btn').style.display = 'flex';
+  actionBtn.innerText = 'EXIT';
+  actionBtn.style.background = 'linear-gradient(135deg,#ff6b6b,#c0392b)';
+  showAlert('⛵ Boarded!', '#38ef7d');
+}
+
+function exitBoat() {
+  if (!boatGroup) return;
+  // Save boat position
+  boatHeading = boatGroup.rotation.y;
+  saveBoatState();
+  boatState = 'docked';
+  boatSpeed = 0;
+  boatBoost = false;
+  document.getElementById('boat-hud').style.display = 'none';
+  document.getElementById('boost-btn').style.display = 'none';
+  actionBtn.innerText = 'CAST';
+  actionBtn.style.background = 'linear-gradient(135deg,#00c6ff,#0072ff)';
+  // Teleport to dock
+  const gy = islandHeightAt(DOCK_POSITION.x, DOCK_POSITION.z);
+  const y = (gy != null ? gy : 1.2) + PLAYER_HEIGHT + 0.6;
+  camera.position.set(DOCK_POSITION.x, y, DOCK_POSITION.z);
+  cameraAngles.yaw = 0; cameraAngles.pitch = -0.15;
+  camera.quaternion.setFromEuler(new THREE.Euler(cameraAngles.pitch, cameraAngles.yaw, 0, 'YXZ'));
+  showAlert('⚓ Docked', '#38ef7d');
+}
+
+function updateBoatDriving(dt, time) {
+  if (!boatGroup) return;
+
+  // Input
+  let mX = moveVector.x, mY = -moveVector.y;
+  if (keys.w) mY = 1; if (keys.s) mY = -1; if (keys.a) mX = -1; if (keys.d) mX = 1;
+
+  const maxSpeed = BOAT_MAX_SPEED * (boatBoost ? BOAT_BOOST_MULT : 1);
+  const maxReverse = BOAT_MAX_SPEED * BOAT_REVERSE;
+
+  // Throttle
+  if (mY > 0.15) {
+    boatSpeed += BOAT_ACCEL * dt * mY;
+  } else if (mY < -0.15) {
+    boatSpeed += BOAT_ACCEL * 0.65 * dt * mY;
+  } else {
+    boatSpeed -= boatSpeed * BOAT_DRAG * dt;
+    if (Math.abs(boatSpeed) < 0.05) boatSpeed = 0;
+  }
+  boatSpeed = Math.max(-maxReverse, Math.min(maxSpeed, boatSpeed));
+
+  // Steering (speed-dependent)
+  const speedFactor = Math.min(1, Math.abs(boatSpeed) / 2.0);
+  const turn = mX * BOAT_TURN_RATE * dt * speedFactor * (boatSpeed < 0 ? -1 : 1);
+  boatHeading -= turn;
+
+  // Move
+  boatGroup.position.x += Math.sin(boatHeading) * boatSpeed * dt;
+  boatGroup.position.z += Math.cos(boatHeading) * boatSpeed * dt;
+  boatGroup.rotation.y = boatHeading;
+
+  // Bob on waves
+  const waveY = waveH(boatGroup.position.x, boatGroup.position.z, time);
+  boatGroup.position.y = WATER_LEVEL + 0.30 + waveY;
+  boatGroup.rotation.z = Math.sin(time * 1.7) * 0.045 - turn * 2.8;
+  boatGroup.rotation.x = Math.sin(time * 1.4) * 0.03 + (boatSpeed > 0.2 ? -0.03 * Math.min(1, boatSpeed / BOAT_MAX_SPEED) : 0);
+
+  // Third-person follow camera
+  const camDist = 9 + Math.min(4, Math.abs(boatSpeed) * 0.4);
+  const camHeight = 4.6;
+  const desiredX = boatGroup.position.x - Math.sin(boatHeading) * camDist;
+  const desiredZ = boatGroup.position.z - Math.cos(boatHeading) * camDist;
+  const desiredY = boatGroup.position.y + camHeight;
+  const lerp = Math.min(1, dt * (4 + Math.abs(boatSpeed) * 0.3));
+  camera.position.x += (desiredX - camera.position.x) * lerp;
+  camera.position.y += (desiredY - camera.position.y) * lerp;
+  camera.position.z += (desiredZ - camera.position.z) * lerp;
+  const lookAtX = boatGroup.position.x + Math.sin(boatHeading) * 3;
+  const lookAtZ = boatGroup.position.z + Math.cos(boatHeading) * 3;
+  camera.lookAt(lookAtX, boatGroup.position.y + 0.6, lookAtZ);
+  const e = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+  cameraAngles.yaw = e.y; cameraAngles.pitch = e.x;
+
+  // HUD
+  document.getElementById('boat-speed').textContent = Math.abs(boatSpeed * 3.6).toFixed(0);
+
+  // Wake splash while moving
+  if (Math.abs(boatSpeed) > 2 && Math.random() < dt * Math.abs(boatSpeed) * 1.2) {
+    const p = new THREE.Vector3(
+      boatGroup.position.x - Math.sin(boatHeading) * 2.0,
+      WATER_LEVEL + 0.05,
+      boatGroup.position.z - Math.cos(boatHeading) * 2.0
+    );
+    splash(p, 2);
+  }
+}
+
+/* ===================== ACTION BUTTON ===================== */
 const actionBtn = document.getElementById('action-btn'), msg = document.getElementById('interaction-msg');
 let state = 'idle', hookTimeout = null, targetFish = null;
 let barPos = 0, fishPos = 150, catchProgress = 0, isHoldingReel = false, fishTarget = 150, popupFishMesh = null;
@@ -924,11 +1316,33 @@ const _spTmp = new THREE.Vector3();
 actionBtn.addEventListener('mousedown', handleBtnDown); actionBtn.addEventListener('touchstart', handleBtnDown);
 actionBtn.addEventListener('mouseup', handleBtnUp); actionBtn.addEventListener('touchend', handleBtnUp);
 
+// Boost button
+const boostBtn = document.getElementById('boost-btn');
+boostBtn.addEventListener('mousedown', e => { e.preventDefault(); boatBoost = true; });
+boostBtn.addEventListener('mouseup', e => { e.preventDefault(); boatBoost = false; });
+boostBtn.addEventListener('mouseleave', () => boatBoost = false);
+boostBtn.addEventListener('touchstart', e => { e.preventDefault(); boatBoost = true; }, { passive: false });
+boostBtn.addEventListener('touchend', e => { e.preventDefault(); boatBoost = false; });
+boostBtn.addEventListener('touchcancel', () => boatBoost = false);
+
 function handleBtnDown(e) {
   e.preventDefault();
   if (editorMode) return;
+
+  // Driving the boat — the action button is "EXIT"
+  if (boatState === 'driving') {
+    exitBoat();
+    return;
+  }
+
   if (state === 'minigame') { isHoldingReel = true; return; }
+
   if (state === 'idle') {
+    // Boat proximity takes priority
+    if (isNearBoat()) {
+      boardBoat();
+      return;
+    }
     if (nearbySpecial) {
       if (nearbySpecial.specialRole === 'sell') { openSell(); return; }
       if (nearbySpecial.specialRole === 'shop') { openShop(); return; }
@@ -1085,7 +1499,7 @@ editorControl.addEventListener('mouseDown', () => {
     };
   } else { dragSnapshot = null; }
 });
-editorControl.addEventListener('mouseUp', () => { setTimeout(() => { editorGizmoDragging = false; dragSnapshot = null; }, 0); saveEditorScene(true); });
+editorControl.addEventListener('mouseUp', () => { setTimeout(() => { editorGizmoDragging = false; dragSnapshot = null; }, 0); saveEditorScene(true); if (editorSelected === boatGroup) saveBoatState(); });
 
 /* ===================== LOCAL ASSET CACHE ===================== */
 const ASSET_CACHE_KEY = 'ultimateFishingAssetCacheV1';
@@ -1217,7 +1631,7 @@ function updateHistoryButtons() {
 function pushHistory() {
   if (historyLock || !historyReady) return;
   let stateStr = null;
-  try { stateStr = JSON.stringify(editorModels.map(serializeObject)); } catch (e) { return; }
+  try { stateStr = JSON.stringify(editorModels.filter(m => !m.isBoat).map(serializeObject)); } catch (e) { return; }
   if (!stateStr) return;
   if (undoStack.length && undoStack[undoStack.length - 1] === stateStr) return;
   undoStack.push(stateStr);
@@ -1226,9 +1640,6 @@ function pushHistory() {
   updateHistoryButtons();
 }
 
-/* Normalize an incoming scene entry — supports 'path' alias, detects
-   'preplaced:' prefix, and maps legacy field names so DEFAULT_SCENE_DATA
-   and pasted sceneAssets arrays both load seamlessly. */
 function normalizeSceneEntry(entry) {
   if (!entry) return entry;
   if (!entry.assetPath && entry.path) entry.assetPath = entry.path;
@@ -1274,6 +1685,7 @@ async function applySceneState(stateStr) {
         if (entry.noCollision !== undefined) found.object.userData.noCollision = entry.noCollision;
         if (entry.noShadow !== undefined) { found.object.userData.noShadow = entry.noShadow; applyShadowState(found.object); }
         if (entry.userHidden !== undefined) { found.object.userData.userHidden = entry.userHidden; found.object.visible = !entry.userHidden; }
+        if (found.isBoat) saveBoatState();
       }
     } else if (entry.assetPath || entry.url) {
       entry.url = entry.url || entry.assetPath;
@@ -1341,6 +1753,7 @@ function serializeObject(m) {
     userHidden: !!m.object.userData.userHidden
   };
   if (m.specialRole) base.specialRole = m.specialRole;
+  if (m.isBoat) base.isBoat = true;
   if (m.isPrimitive) { base.primitiveType = m.primitiveType; base.primitiveArgs = m.primitiveArgs; }
   else if (m.isPrePlaced) { }
   else { base.assetPath = m.assetPath; base.url = m.url; }
@@ -1351,7 +1764,7 @@ function saveEditorScene(immediate) {
   clearTimeout(saveTimer);
   const doSave = () => {
     try {
-      const data = editorModels.map(serializeObject);
+      const data = editorModels.filter(m => !m.isBoat).map(serializeObject);
       localStorage.setItem(EDITOR_SCENE_KEY, JSON.stringify({ version: 3, savedAt: Date.now(), models: data }));
       showSavedIndicator();
     } catch (e) { console.warn('[editor] save failed', e); }
@@ -1392,7 +1805,6 @@ function restoreModelEntry(entry, onComplete) {
   } catch (e) { onComplete(); }
 }
 
-/* Apply an array of scene entries (DEFAULT_SCENE_DATA or a pasted sceneAssets array) */
 async function applySceneEntries(entries, opts) {
   opts = opts || {};
   if (!entries || !entries.length) return 0;
@@ -1419,6 +1831,7 @@ async function applySceneEntries(entries, opts) {
           if (entry.noCollision !== undefined) found.object.userData.noCollision = entry.noCollision;
           if (entry.noShadow !== undefined) { found.object.userData.noShadow = entry.noShadow; applyShadowState(found.object); }
           if (entry.userHidden !== undefined) { found.object.userData.userHidden = entry.userHidden; found.object.visible = !entry.userHidden; }
+          if (found.isBoat) saveBoatState();
           restoredCount++;
         }
       } else if (entry.assetPath || entry.url) {
@@ -1457,6 +1870,7 @@ async function loadEditorScene() {
           if (entry.noCollision !== undefined) found.object.userData.noCollision = entry.noCollision;
           if (entry.noShadow !== undefined) { found.object.userData.noShadow = entry.noShadow; applyShadowState(found.object); }
           if (entry.userHidden !== undefined) { found.object.userData.userHidden = entry.userHidden; found.object.visible = !entry.userHidden; }
+          if (found.isBoat) saveBoatState();
           restoredCount++;
         }
       } else if (entry.assetPath || entry.url) {
@@ -1469,7 +1883,6 @@ async function loadEditorScene() {
     refreshEditorSceneList();
     if (restoredCount > 0) setTimeout(() => editorToast('Restored ' + restoredCount + ' object' + (restoredCount > 1 ? 's' : '') + ' from last session'), 600);
   } else {
-    // No saved scene — load the built-in default scene
     const n = await applySceneEntries(DEFAULT_SCENE_DATA, { save: false });
     if (n > 0) {
       saveEditorScene(true);
@@ -1483,10 +1896,8 @@ async function loadEditorScene() {
 }
 $('ed-clear-saved').onclick = () => { if (!confirm('Clear saved editor scene?')) return; try { localStorage.removeItem(EDITOR_SCENE_KEY); } catch (e) {} editorToast('Saved scene cleared'); };
 
-/* Load Default Scene button — clears current non-preplaced objects and applies DEFAULT_SCENE_DATA */
 $('ed-load-default').onclick = async () => {
   if (!confirm('Load the built-in default scene? This will replace your current scene.')) return;
-  // Remove all non-preplaced models
   [...editorModels].forEach(m => {
     if (m.isPrePlaced) return;
     scene.remove(m.object);
@@ -1748,6 +2159,8 @@ function updateSpecialBoxVisuals(inEditor) {
       else { m.object.visible = true; setBoxOpacity(m.object, 1.0); }
     }
   });
+  // Seat marker visibility
+  updateSeatMarkerVisibility();
 }
 
 const primitiveCounter = {};
@@ -1934,7 +2347,7 @@ function refreshEditorSceneList() {
   editorModels.forEach(m => {
     const row = document.createElement('div');
     row.className = 'ed-item' + (editorSelection.indexOf(m.object) >= 0 ? ' sel' : '') + (m.object.userData.userHidden ? ' hidden' : '');
-    const tag = m.specialRole ? ' ◈' : '';
+    const tag = m.isBoat ? ' ⛵' : (m.specialRole ? ' ◈' : '');
     row.innerHTML = `<span class="nm">${m.name}${tag}</span><button class="mini">${m.object.userData.userHidden ? '🚫' : '👁'}</button><button class="mini">✕</button>`;
     row.onclick = (e) => editorSelect(m.object, e.shiftKey || e.ctrlKey || e.metaKey || multiSelectMode);
     const [eye, del] = row.querySelectorAll('.mini');
@@ -1945,7 +2358,7 @@ function refreshEditorSceneList() {
       if (editorMode) updateSpecialBoxVisuals(true);
       refreshEditorSceneList(); saveEditorScene(true);
     };
-    del.onclick = e => { e.stopPropagation(); editorRemoveModel(m); };
+    del.onclick = e => { e.stopPropagation(); if (m.isBoat) { editorToast('Boat cannot be deleted'); return; } editorRemoveModel(m); };
     el.appendChild(row);
   });
 }
@@ -1955,6 +2368,7 @@ function duplicateSelection(offsetX) {
   const srcSelection = [...editorSelection];
   const newSelection = [];
   srcSelection.forEach(obj => {
+    if (obj === boatGroup) { editorToast('Boat cannot be duplicated'); return; }
     const clone = obj.clone(true);
     clone.traverse(o => { if (o.isMesh && o.material) { o.material = Array.isArray(o.material) ? o.material.map(m => m.clone()) : o.material.clone(); } });
     clone.position.x += offsetX;
@@ -1974,6 +2388,7 @@ function duplicateSelection(offsetX) {
     });
     newSelection.push(clone);
   });
+  if (!newSelection.length) return;
   editorSelection = newSelection;
   editorSelected = newSelection[0];
   updateSelectionVisuals();
@@ -1983,6 +2398,7 @@ function duplicateSelection(offsetX) {
   saveEditorScene(true);
 }
 function editorRemoveModel(m) {
+  if (m.isBoat) return;
   const idx = editorSelection.indexOf(m.object);
   if (idx >= 0) editorSelection.splice(idx, 1);
   if (editorSelected === m.object) editorSelected = editorSelection[editorSelection.length - 1] || null;
@@ -2028,7 +2444,7 @@ function updatePerObjButtons() {
     v.className = 'ed-btn ' + (hidden ? 'tog-off' : 'tog-on');
   }
 }
-function edBind(id, fn) { const el = $(id); el.addEventListener('input', () => { if (editorSelected) { fn(parseFloat(el.value) || 0); editorSelection.forEach((obj, i) => { if (editorBoxes[i]) editorBoxes[i].setFromObject(obj); }); saveEditorScene(); } }); el.addEventListener('blur', () => { if (editorSelected) syncEditorPropsFromObj(); }); }
+function edBind(id, fn) { const el = $(id); el.addEventListener('input', () => { if (editorSelected) { fn(parseFloat(el.value) || 0); editorSelection.forEach((obj, i) => { if (editorBoxes[i]) editorBoxes[i].setFromObject(obj); }); saveEditorScene(); if (editorSelected === boatGroup) saveBoatState(); } }); el.addEventListener('blur', () => { if (editorSelected) syncEditorPropsFromObj(); }); }
 edBind('ed-px', v => editorSelected.position.x = v);
 edBind('ed-py', v => editorSelected.position.y = v);
 edBind('ed-pz', v => editorSelected.position.z = v);
@@ -2038,8 +2454,8 @@ edBind('ed-rz', v => editorSelected.rotation.z = v * ED_RAD);
 edBind('ed-sx', v => { editorSelected.scale.x = v; if ($('ed-uniform').checked) { editorSelected.scale.y = v; editorSelected.scale.z = v; } });
 edBind('ed-sy', v => { editorSelected.scale.y = v; if ($('ed-uniform').checked) { editorSelected.scale.x = v; editorSelected.scale.z = v; } });
 edBind('ed-sz', v => { editorSelected.scale.z = v; if ($('ed-uniform').checked) { editorSelected.scale.x = v; editorSelected.scale.y = v; } });
-$('ed-scale-reset').onclick = () => { if (!editorSelected) return; editorSelected.scale.set(1, 1, 1); syncEditorPropsFromObj(); editorSelection.forEach((obj, i) => { if (editorBoxes[i]) editorBoxes[i].setFromObject(obj); }); saveEditorScene(true); };
-$('ed-scale-uniform').onclick = () => { if (!editorSelected) return; const avg = (editorSelected.scale.x + editorSelected.scale.y + editorSelected.scale.z) / 3; editorSelected.scale.set(avg, avg, avg); syncEditorPropsFromObj(); editorSelection.forEach((obj, i) => { if (editorBoxes[i]) editorBoxes[i].setFromObject(obj); }); saveEditorScene(true); };
+$('ed-scale-reset').onclick = () => { if (!editorSelected) return; editorSelected.scale.set(1, 1, 1); syncEditorPropsFromObj(); editorSelection.forEach((obj, i) => { if (editorBoxes[i]) editorBoxes[i].setFromObject(obj); }); saveEditorScene(true); if (editorSelected === boatGroup) saveBoatState(); };
+$('ed-scale-uniform').onclick = () => { if (!editorSelected) return; const avg = (editorSelected.scale.x + editorSelected.scale.y + editorSelected.scale.z) / 3; editorSelected.scale.set(avg, avg, avg); syncEditorPropsFromObj(); editorSelection.forEach((obj, i) => { if (editorBoxes[i]) editorBoxes[i].setFromObject(obj); }); saveEditorScene(true); if (editorSelected === boatGroup) saveBoatState(); };
 $('ed-scale-match').onclick = () => { if (!editorSelected || editorSelection.length < 2) { editorToast('Select 2+ objects'); return; } const src = editorSelected.scale.clone(); editorSelection.forEach(obj => { if (obj !== editorSelected) obj.scale.copy(src); }); editorSelection.forEach((obj, i) => { if (editorBoxes[i]) editorBoxes[i].setFromObject(obj); }); editorToast('Scale matched'); saveEditorScene(true); };
 function applyColor(hex) { if (!editorSelection.length) return; editorSelection.forEach(obj => applyColorToObject(obj, hex)); editorToast('Recolored ' + editorSelection.length); saveEditorScene(true); }
 $('ed-color').addEventListener('input', e => applyColor(e.target.value));
@@ -2059,9 +2475,9 @@ $('ed-focus').onclick = () => {
 $('ed-dup').onclick = () => duplicateSelection(1.5);
 $('ed-del').onclick = () => {
   if (!editorSelection.length) return;
-  [...editorSelection].forEach(obj => { const m = editorModels.find(x => x.object === obj); if (m) editorRemoveModel(m); });
-  editorSelection = []; editorSelected = null;
-  updateSelectionVisuals(); $('ed-sel-count').textContent = '0';
+  [...editorSelection].forEach(obj => { if (obj === boatGroup) return; const m = editorModels.find(x => x.object === obj); if (m) editorRemoveModel(m); });
+  editorSelection = editorSelection.filter(o => o === boatGroup); editorSelected = editorSelection[0] || null;
+  updateSelectionVisuals(); $('ed-sel-count').textContent = editorSelection.length;
 };
 document.querySelectorAll('.ed-btn.mode').forEach(btn => { btn.onclick = () => { document.querySelectorAll('.ed-btn.mode').forEach(b => b.classList.remove('on')); btn.classList.add('on'); editorControl.setMode(btn.dataset.mode); }; });
 document.querySelectorAll('.ed-btn.mode-mv').forEach(btn => {
@@ -2075,6 +2491,57 @@ document.querySelectorAll('.ed-btn.mode-mv').forEach(btn => {
 });
 $('ed-multiselect-toggle').onclick = () => { multiSelectMode = !multiSelectMode; const btn = $('ed-multiselect-toggle'); btn.classList.toggle('on', multiSelectMode); btn.textContent = (multiSelectMode ? '☑' : '☐') + ' Multi-Select: ' + (multiSelectMode ? 'ON' : 'OFF'); editorToast(multiSelectMode ? 'Multi-select ON' : 'Multi-select OFF'); };
 $('ed-collision-toggle').onclick = () => { collisionEnabled = !collisionEnabled; const btn = $('ed-collision-toggle'); btn.classList.toggle('on', collisionEnabled); btn.textContent = '🚶 Collision System: ' + (collisionEnabled ? 'ON' : 'OFF'); editorToast(collisionEnabled ? 'Collision System ON' : 'Collision System OFF'); };
+
+/* ===== BOAT EDITOR BUTTONS ===== */
+$('ed-boat-focus').onclick = () => {
+  if (!boatGroup) return;
+  editorSelect(boatGroup);
+  const box = new THREE.Box3().setFromObject(boatGroup);
+  const size = box.getSize(new THREE.Vector3()).length() || 4;
+  const center = box.getCenter(new THREE.Vector3());
+  const dir = new THREE.Vector3(0, 0.4, -1).normalize().applyQuaternion(camera.quaternion);
+  camera.position.copy(center).addScaledVector(dir, -size * 1.5);
+  camera.lookAt(center);
+  const e = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+  cameraAngles.yaw = e.y; cameraAngles.pitch = e.x;
+  editorToast('Boat selected');
+};
+$('ed-boat-assign').onclick = () => {
+  if (!editorSelected) { editorToast('Select a loaded GLB first'); return; }
+  const m = editorModels.find(x => x.object === editorSelected);
+  if (!m || m.isBoat || m.specialRole || m.isPrimitive) { editorToast('Select a loaded GLB model'); return; }
+  if (!m.assetPath || m.assetPath.startsWith('preplaced:') || m.assetPath.startsWith('primitive:') || m.assetPath.startsWith('special:')) {
+    editorToast('Only external GLB/OBJ models can be assigned'); return;
+  }
+  if (!m.url) { editorToast('Model has no URL'); return; }
+  // Hide the original
+  m.object.userData.userHidden = true;
+  m.object.visible = false;
+  refreshEditorSceneList();
+  // Load as boat visual
+  loadBoatGLB(m.assetPath, m.url, false);
+};
+$('ed-boat-reset').onclick = () => {
+  resetBoatVisual();
+  // Un-hide any previously assigned model? Leave as is for simplicity.
+};
+$('ed-boat-respawn').onclick = () => {
+  if (!boatGroup) return;
+  boatGroup.position.copy(BOAT_SPAWN);
+  boatGroup.rotation.set(0, BOAT_SPAWN_HEADING, 0);
+  boatHeading = BOAT_SPAWN_HEADING;
+  boatSpeed = 0;
+  saveBoatState();
+  editorToast('Boat moved to spawn');
+};
+$('ed-boat-seat-toggle').onclick = () => {
+  boatSeatVisible = !boatSeatVisible;
+  const b = $('ed-boat-seat-toggle');
+  b.textContent = '👁 Seat Marker: ' + (boatSeatVisible ? 'ON' : 'OFF');
+  b.className = 'ed-btn ' + (boatSeatVisible ? 'tog-on' : 'tog-off');
+  updateSeatMarkerVisibility();
+  saveBoatState();
+};
 
 let globalShadowsOn = true, globalCollisionOn = true;
 function updateGlobalButtons() {
@@ -2174,6 +2641,12 @@ function editorRegisterPrePlaced() {
     water.userData.assetPath = 'preplaced:water'; water.userData.url = '';
     editorModels.push({ name: 'Water', assetPath: 'preplaced:water', url: '', object: water, isPrePlaced: true, prePlacedId: 'water' });
   }
+  if (typeof dockGroup !== 'undefined' && dockGroup && !editorModels.some(m => m.object === dockGroup)) {
+    editorModels.push({ name: 'Dock', assetPath: 'preplaced:dock', url: '', object: dockGroup, isPrePlaced: true, prePlacedId: 'dock' });
+  }
+  if (typeof boatGroup !== 'undefined' && boatGroup && !editorModels.some(m => m.object === boatGroup)) {
+    editorModels.push({ name: 'Boat', assetPath: 'preplaced:boat', url: '', object: boatGroup, isBoat: true, isPrePlaced: true, prePlacedId: 'boat' });
+  }
   refreshEditorSceneList();
 }
 
@@ -2186,7 +2659,7 @@ $('editor-toggle').onclick = () => {
   if (editorMode) {
     editorRegisterPrePlaced();
     savedCam.pos.copy(camera.position); savedCam.quat.copy(camera.quaternion);
-    camera.position.set(0, 14, 22); camera.lookAt(0, 0, 0);
+    camera.position.set(30, 16, 26); camera.lookAt(22, 0, 8);
     const e = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
     cameraAngles.yaw = e.y; cameraAngles.pitch = e.x;
     if (currentRodModel) currentRodModel.visible = false;
@@ -2195,6 +2668,8 @@ $('editor-toggle').onclick = () => {
     renderPreSceneList(); renderDebug(); updateCacheInfo();
     updateGlobalButtons(); updatePerObjButtons();
     updateSpecialBoxVisuals(true);
+    $('ed-boat-seat-toggle').textContent = '👁 Seat Marker: ' + (boatSeatVisible ? 'ON' : 'OFF');
+    $('ed-boat-seat-toggle').className = 'ed-btn ' + (boatSeatVisible ? 'tog-on' : 'tog-off');
     if (!autoScanDone) { autoScanDone = true; editorScanRepo(true); }
     else if (!editorRemoteFiles.length) editorScanRepo(true);
   } else {
@@ -2208,6 +2683,7 @@ $('editor-toggle').onclick = () => {
     $('editor-debug').style.display = 'none';
     dragState = null;
     updateSpecialBoxVisuals(false);
+    saveBoatState();
     editorToast('Editor OFF');
   }
 };
@@ -2229,9 +2705,9 @@ document.addEventListener('keydown', e => {
   if (k === 'f') $('ed-focus').click();
   if (k === 'delete' || k === 'backspace') {
     if (editorSelection.length) {
-      [...editorSelection].forEach(obj => { const m = editorModels.find(x => x.object === obj); if (m) editorRemoveModel(m); });
-      editorSelection = []; editorSelected = null;
-      updateSelectionVisuals(); $('ed-sel-count').textContent = '0';
+      [...editorSelection].forEach(obj => { if (obj === boatGroup) return; const m = editorModels.find(x => x.object === obj); if (m) editorRemoveModel(m); });
+      editorSelection = editorSelection.filter(o => o === boatGroup); editorSelected = editorSelection[0] || null;
+      updateSelectionVisuals(); $('ed-sel-count').textContent = editorSelection.length;
     }
   }
   if (k === 'd' && ctrl) { e.preventDefault(); duplicateSelection(1.5); }
@@ -2323,7 +2799,7 @@ canvasEl.addEventListener('pointerup', e => {
   dragState = null;
   if (editorDragged || editorGizmoDragging || editorControl.dragging) {
     editorPointerDown = null;
-    if (wasDragging) saveEditorScene(true);
+    if (wasDragging) { saveEditorScene(true); if (editorSelected === boatGroup) saveBoatState(); }
     return;
   }
   editorPointerDown = null;
@@ -2346,6 +2822,9 @@ $('ed-export').onclick = () => {
   const lines = editorModels.map(m => {
     const p = m.object.position, r = m.object.rotation, s = m.object.scale;
     const f = n => Math.round(n * 1000) / 1000;
+    if (m.isBoat) {
+      return `  { type:'model', name:'${m.name}', path:'preplaced:boat', position:[${f(p.x)}, ${f(p.y)}, ${f(p.z)}], rotation:[${f(r.x / ED_RAD)}, ${f(r.y / ED_RAD)}, ${f(r.z / ED_RAD)}], scale:[${f(s.x)}, ${f(s.y)}, ${f(s.z)}] }`;
+    }
     if (m.specialRole) {
       const col = m.object.material && m.object.material.color ? m.object.material.color.getHexString() : 'ffffff';
       return `  { type:'specialBox', role:'${m.specialRole}', color:'#${col}', name:'${m.name}', position:[${f(p.x)}, ${f(p.y)}, ${f(p.z)}], rotation:[${f(r.x / ED_RAD)}, ${f(r.y / ED_RAD)}, ${f(r.z / ED_RAD)}], scale:[${f(s.x)}, ${f(s.y)}, ${f(s.z)}] }`;
@@ -2364,6 +2843,12 @@ $('ed-close-modal').onclick = () => $('editor-modal').classList.remove('on');
 $('ed-copy').onclick = () => { const ta = $('ed-export-text'); ta.select(); try { document.execCommand('copy'); editorToast('Copied!'); } catch (e) { navigator.clipboard.writeText(ta.value).then(() => editorToast('Copied!')); } };
 let edToastT = null;
 function editorToast(t) { const el = $('ed-toast'); el.textContent = t; el.classList.add('on'); clearTimeout(edToastT); edToastT = setTimeout(() => el.classList.remove('on'), 1800); }
+
+/* ===== INITIALIZE DOCK + BOAT BEFORE LOADING SCENE ===== */
+buildDock();
+createBoat();
+loadBoatState();
+updateSeatMarkerVisibility();
 
 setTimeout(() => {
   const l = document.getElementById('loading-screen'); l.style.opacity = '0';
@@ -2403,6 +2888,24 @@ function animate() {
     renderer.render(scene, camera);
     return;
   }
+
+  // ===== BOAT DRIVING MODE =====
+  if (boatState === 'driving') {
+    updateBoatDriving(dt, time);
+    // Particles still update
+    for (let i = 0; i < SP_N; i++) {
+      if (spLife[i] > 0) {
+        spLife[i] -= dt * 1.2; spVel[i * 3 + 1] -= 9.8 * dt;
+        spPos[i * 3] += spVel[i * 3] * dt; spPos[i * 3 + 1] += spVel[i * 3 + 1] * dt; spPos[i * 3 + 2] += spVel[i * 3 + 2] * dt;
+        if (spLife[i] <= 0 || spPos[i * 3 + 1] < WATER_LEVEL - 0.1) { spLife[i] = 0; spPos[i * 3 + 1] = -100; }
+      }
+    }
+    spGeo.attributes.position.needsUpdate = true;
+    sky.position.copy(camera.position);
+    renderer.render(scene, camera);
+    return;
+  }
+
   updateSpecialBoxVisuals(false);
 
   const curFeetY = camera.position.y - PLAYER_HEIGHT;
@@ -2459,8 +2962,13 @@ function animate() {
       if (d < best) { best = d; nearbySpecial = m; }
     }
   }
+
+  // Action button text
   if (state === 'idle') {
-    if (nearbySpecial && nearbySpecial.specialRole === 'sell') {
+    if (isNearBoat()) {
+      actionBtn.innerText = 'BOARD';
+      actionBtn.style.background = 'linear-gradient(135deg,#ffb84d,#ff8c00)';
+    } else if (nearbySpecial && nearbySpecial.specialRole === 'sell') {
       actionBtn.innerText = 'MARKET';
       actionBtn.style.background = 'linear-gradient(135deg,#ff6b6b,#c0392b)';
     } else if (nearbySpecial && nearbySpecial.specialRole === 'shop') {
@@ -2496,6 +3004,14 @@ function animate() {
     }
     lineGeo.attributes.position.needsUpdate = true;
     ripples.forEach((r, i) => { const s = (time * 0.7 + i * 0.5) % 1; r.position.set(tg.x, y + 0.02, tg.z); r.scale.setScalar(0.6 + s * 3.2); r.material.opacity = (1 - s) * 0.5; });
+  } else {
+    // Idle boat bob so it looks alive in the water
+    if (boatGroup && boatState === 'docked') {
+      const waveY = waveH(boatGroup.position.x, boatGroup.position.z, time);
+      boatGroup.position.y = WATER_LEVEL + 0.30 + waveY;
+      boatGroup.rotation.z = Math.sin(time * 1.7) * 0.04;
+      boatGroup.rotation.x = Math.sin(time * 1.4) * 0.025;
+    }
   }
 
   for (let i = 0; i < SP_N; i++) {
