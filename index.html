@@ -251,6 +251,7 @@ body.editor #ed-alt-btns{display:flex}
     <button class="ed-btn danger" id="ed-clear-cache">🗑 Clear Cached Models/Textures</button>
     <div id="ed-cache-info">Cache: empty</div>
     <button class="ed-btn danger" id="ed-clear-saved">🗑 Clear Saved Scene</button>
+    <button class="ed-btn" id="ed-load-default" style="margin-top:6px;background:linear-gradient(135deg,#ffb84d,#ff8c00);color:#3a2400;border:none;font-weight:900">📦 Load Default Scene</button>
   </div>
 
   <div class="ed-sep"></div>
@@ -445,6 +446,41 @@ const rods = [
 const SAVE_KEY = 'ultimateFishingSaveLite';
 const PRESCENE_KEY = 'ultimateFishingPreScene';
 const EDITOR_SCENE_KEY = 'ultimateFishingEditorScene';
+
+/* ===================== DEFAULT SCENE ===================== */
+const DEFAULT_SCENE_DATA = [
+  { type:'model', name:'Island', path:'preplaced:island', position:[37.423, 0, -2.469], rotation:[0, 0, 0], scale:[1, 1, 1] },
+  { type:'model', name:'Grass', path:'preplaced:grass', position:[-36.857, 0, 2.062], rotation:[0, 0, 0], scale:[1, 1, 1] },
+  { type:'model', name:'Sand', path:'preplaced:sand', position:[-36.857, 0, 2.062], rotation:[0, 0, 0], scale:[1, 1, 1] },
+  { type:'model', name:'Water', path:'preplaced:water', position:[-74.961, -0.513, 44.953], rotation:[0, 0, 0], scale:[1, 1, 1] },
+  { type:'primitive', shape:'box', args:[1, 1, 1], color:'#ff6b6b', name:'Box_1', position:[11.088, 1.747, 13.399], rotation:[0, -61.249, 0], scale:[15.139, 0.213, 3.079] },
+  { type:'specialBox', role:'sell', color:'#ff3b3b', name:'FishMarket_1', position:[0, 10.779, 16.938], rotation:[0, 0, 0], scale:[1, 1, 1] },
+  { type:'specialBox', role:'shop', color:'#2b7bff', name:'BaitShop_1', position:[5.383, 2.106, 1.056], rotation:[0, -47.785, 0], scale:[4.083, 9.087, -0.345] },
+  { type:'specialBox', role:'sell', color:'#ff3b3b', name:'FishMarket_2', position:[-6.835, 2.296, -4.243], rotation:[0, -24.007, 0], scale:[0.867, 2.721, 2.538] },
+  { type:'model', name:'MarketStand_1', path:'assets/MarketStand_1.gltf', position:[-7.499, 1.746, -4.861], rotation:[0, -31.226, 0], scale:[2.894, 2.894, 2.894] },
+  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[-6.195, 1.765, -4.155], rotation:[0, -19.022, 0], scale:[1.666, 1.666, 1.666] },
+  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY_copy', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[-4.684, 1.765, -2.842], rotation:[0, -37.643, 0], scale:[1.666, 1.666, 1.666] },
+  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY_copy_copy', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[-3.1, 1.765, -1.441], rotation:[0, -24.351, 0], scale:[1.666, 1.666, 1.666] },
+  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY_copy_copy_copy', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[-1.239, 1.765, -0.206], rotation:[0, -19.309, 0], scale:[1.666, 1.666, 1.666] },
+  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY_copy_copy_copy_copy', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[0.817, 1.765, 0.736], rotation:[0, -19.309, 0], scale:[1.666, 1.666, 1.666] },
+  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY_copy_copy_copy_copy_copy', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[2.792, 1.765, 1.638], rotation:[0, -19.309, 0], scale:[1.666, 1.666, 1.666] },
+  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY_copy_copy_copy_copy_copy_copy', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[4.495, 1.765, 2.415], rotation:[0, -19.309, 0], scale:[1.666, 1.666, 1.666] },
+  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY_copy_copy_copy_copy_copy_copy_copy', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[5.798, 1.765, 3.676], rotation:[0, -47.727, 0], scale:[1.666, 1.666, 1.666] },
+  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY_copy_copy_copy_copy_copy_copy_copy_copy', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[6.931, 1.765, 5.424], rotation:[0, -47.727, 0], scale:[1.666, 1.666, 1.666] },
+  { type:'model', name:'Rock Path Round Thin by Quaternius - L1GeXpXEPY_copy_copy_copy_copy_copy_copy_copy_copy_copy', path:'assets/Rock Path Round Thin by Quaternius - L1GeXpXEPY.glb', position:[7.818, 1.765, 7.299], rotation:[0, -47.727, 0], scale:[1.666, 1.666, 1.666] },
+  { type:'model', name:'scene 7', path:'assets/scene 7.glb', position:[24.598, -1.81, 6.991], rotation:[0.974, -61.249, 0], scale:[3.562, 3.562, 3.562] },
+  { type:'model', name:'scene 7_copy', path:'assets/scene 7.glb', position:[27.837, -1.81, 12.931], rotation:[0, -61.249, 0], scale:[3.562, 3.562, 3.562] },
+  { type:'model', name:'scene 3', path:'assets/scene 3.glb', position:[-2.342, 2.159, 0.701], rotation:[0, 0, 0], scale:[2.033, 2.033, 2.033] },
+  { type:'model', name:'scene 3_copy', path:'assets/scene 3.glb', position:[12.953, 2.159, -1.438], rotation:[0, 88.064, 0], scale:[2.033, 2.033, 2.033] },
+  { type:'model', name:'scene 4', path:'assets/scene 4.glb', position:[-10.397, 1.385, 19.273], rotation:[0, 81.99, 0], scale:[1.5, 1.5, 1.5] },
+  { type:'model', name:'scene 4_copy', path:'assets/scene 4.glb', position:[-2.909, 1.385, 9.783], rotation:[-180.023, 62.051, -180.023], scale:[1.5, 1.5, 1.5] },
+  { type:'model', name:'scene 5', path:'assets/scene 5.glb', position:[-4.824, 1.894, -5.309], rotation:[0, 0, 0], scale:[1.634, 1.634, 1.634] },
+  { type:'model', name:'scene 5_copy', path:'assets/scene 5.glb', position:[4.308, 1.894, 1.33], rotation:[0, 0, 0], scale:[1.512, 1.512, 1.512] },
+  { type:'model', name:'scene 5_copy_copy', path:'assets/scene 5.glb', position:[-5.372, 1.894, -14.78], rotation:[0, 0, 0], scale:[1.512, 1.512, 1.512] },
+  { type:'model', name:'Characters_Sharky', path:'assets/Characters_Sharky.gltf', position:[-8.971, 1.782, -5.969], rotation:[0, 57.983, 0], scale:[1.802, 1.608, 1.802] },
+  { type:'model', name:'Environment_House3', path:'assets/Environment_House3.gltf', position:[6.668, 1.642, -0.266], rotation:[0, -47.785, 0], scale:[1.221, 1.221, 1.221] }
+];
+
 function saveGame() { try { localStorage.setItem(SAVE_KEY, JSON.stringify({money, inventory, fishIndex, totalCaughtCount, rodsOwned: rods.map(r => r.owned), currentRodIndex})); } catch (e) {} updateHUD(); }
 function loadGame() {
   try {
@@ -903,8 +939,6 @@ function handleBtnDown(e) {
         return;
       }
     }
-    // Player can fish anywhere they're standing on solid ground (the water barrier
-    // prevents walking into water, so any position above WATER_LEVEL is fishable).
     if (camera.position.y > WATER_LEVEL + 0.5) {
       state = 'casting'; actionBtn.innerText = 'WAIT'; actionBtn.style.background = '#555';
       const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
@@ -1191,10 +1225,25 @@ function pushHistory() {
   redoStack.length = 0;
   updateHistoryButtons();
 }
+
+/* Normalize an incoming scene entry — supports 'path' alias, detects
+   'preplaced:' prefix, and maps legacy field names so DEFAULT_SCENE_DATA
+   and pasted sceneAssets arrays both load seamlessly. */
+function normalizeSceneEntry(entry) {
+  if (!entry) return entry;
+  if (!entry.assetPath && entry.path) entry.assetPath = entry.path;
+  if (!entry.isPrePlaced && entry.assetPath && entry.assetPath.indexOf('preplaced:') === 0) {
+    entry.isPrePlaced = true;
+    entry.prePlacedId = entry.assetPath.substring('preplaced:'.length);
+  }
+  return entry;
+}
+
 async function applySceneState(stateStr) {
   historyLock = true;
   let entries = [];
   try { entries = JSON.parse(stateStr) || []; } catch (e) { entries = []; }
+  entries = entries.map(normalizeSceneEntry);
 
   [...editorModels].forEach(m => {
     if (m.isPrePlaced) return;
@@ -1211,10 +1260,10 @@ async function applySceneState(stateStr) {
   const promises = [];
   for (const entry of entries) {
     if (!entry) continue;
-    if (entry.isPrimitive) {
-      createPrimitive(entry.primitiveType, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow, userHidden: entry.userHidden });
-    } else if (entry.specialRole) {
-      createSpecialBox(entry.specialRole, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow, userHidden: entry.userHidden });
+    if (entry.type === 'primitive' || entry.isPrimitive) {
+      createPrimitive(entry.shape || entry.primitiveType, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow, userHidden: entry.userHidden });
+    } else if (entry.type === 'specialBox' || entry.specialRole) {
+      createSpecialBox(entry.role || entry.specialRole, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow, userHidden: entry.userHidden });
     } else if (entry.isPrePlaced) {
       const found = editorModels.find(m => m.isPrePlaced && m.prePlacedId === entry.prePlacedId);
       if (found) {
@@ -1224,9 +1273,10 @@ async function applySceneState(stateStr) {
         if (entry.color && found.object.material && found.object.material.color) found.object.material.color.set(entry.color);
         if (entry.noCollision !== undefined) found.object.userData.noCollision = entry.noCollision;
         if (entry.noShadow !== undefined) { found.object.userData.noShadow = entry.noShadow; applyShadowState(found.object); }
-        if (entry.userHidden !== undefined) found.object.userData.userHidden = entry.userHidden;
+        if (entry.userHidden !== undefined) { found.object.userData.userHidden = entry.userHidden; found.object.visible = !entry.userHidden; }
       }
-    } else if (entry.url) {
+    } else if (entry.assetPath || entry.url) {
+      entry.url = entry.url || entry.assetPath;
       promises.push(new Promise(res => restoreModelEntry(entry, () => res())));
     }
   }
@@ -1311,7 +1361,7 @@ function saveEditorScene(immediate) {
 }
 function applyColorToObject(obj, hex) { obj.traverse(o => { if (!o.isMesh || !o.material) return; const mats = Array.isArray(o.material) ? o.material : [o.material]; mats.forEach(m => { if (m.color) { m.color.set(hex); m.needsUpdate = true; } }); }); }
 function restoreModelEntry(entry, onComplete) {
-  const path = entry.assetPath || '';
+  const path = entry.assetPath || entry.url || '';
   const ext = path.split('.').pop().toLowerCase();
   const cb = (obj) => {
     if (!obj) { onComplete(); return; }
@@ -1341,18 +1391,24 @@ function restoreModelEntry(entry, onComplete) {
     else editorLoadGLB(entry.url, entry.name, entry.assetPath, cb);
   } catch (e) { onComplete(); }
 }
-async function loadEditorScene() {
-  let saved = null;
-  try { saved = JSON.parse(localStorage.getItem(EDITOR_SCENE_KEY)); } catch (e) { saved = null; }
-  if (saved && saved.models && saved.models.length) {
-    restoreInProgress = true;
-    const promises = [];
-    let restoredCount = 0, failedCount = 0;
-    for (const entry of saved.models) {
-      if (entry.isPrimitive) {
-        try { createPrimitive(entry.primitiveType, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow, userHidden: entry.userHidden }); restoredCount++; } catch (e) { failedCount++; }
-      } else if (entry.specialRole) {
-        try { createSpecialBox(entry.specialRole, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow, userHidden: entry.userHidden }); restoredCount++; } catch (e) { failedCount++; }
+
+/* Apply an array of scene entries (DEFAULT_SCENE_DATA or a pasted sceneAssets array) */
+async function applySceneEntries(entries, opts) {
+  opts = opts || {};
+  if (!entries || !entries.length) return 0;
+  entries = entries.map(normalizeSceneEntry);
+  restoreInProgress = true;
+  const promises = [];
+  let restoredCount = 0;
+  for (const entry of entries) {
+    if (!entry) continue;
+    try {
+      if (entry.type === 'primitive' || entry.isPrimitive) {
+        createPrimitive(entry.shape || entry.primitiveType, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow, userHidden: entry.userHidden });
+        restoredCount++;
+      } else if (entry.type === 'specialBox' || entry.specialRole) {
+        createSpecialBox(entry.role || entry.specialRole, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow, userHidden: entry.userHidden });
+        restoredCount++;
       } else if (entry.isPrePlaced) {
         const found = editorModels.find(m => m.isPrePlaced && m.prePlacedId === entry.prePlacedId);
         if (found) {
@@ -1365,7 +1421,46 @@ async function loadEditorScene() {
           if (entry.userHidden !== undefined) { found.object.userData.userHidden = entry.userHidden; found.object.visible = !entry.userHidden; }
           restoredCount++;
         }
-      } else if (entry.url) {
+      } else if (entry.assetPath || entry.url) {
+        entry.url = entry.url || entry.assetPath;
+        promises.push(new Promise(resolve => { restoreModelEntry(entry, () => { restoredCount++; resolve(); }); }));
+      }
+    } catch (e) { console.warn('[scene] entry failed', e, entry); }
+  }
+  try { await Promise.all(promises); } catch (e) {}
+  restoreInProgress = false;
+  refreshEditorSceneList();
+  if (opts.save !== false) saveEditorScene(true);
+  return restoredCount;
+}
+
+async function loadEditorScene() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(EDITOR_SCENE_KEY)); } catch (e) { saved = null; }
+  if (saved && saved.models && saved.models.length) {
+    const promises = [];
+    let restoredCount = 0, failedCount = 0;
+    const entries = saved.models.map(normalizeSceneEntry);
+    restoreInProgress = true;
+    for (const entry of entries) {
+      if (entry.type === 'primitive' || entry.isPrimitive) {
+        try { createPrimitive(entry.shape || entry.primitiveType, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow, userHidden: entry.userHidden }); restoredCount++; } catch (e) { failedCount++; }
+      } else if (entry.type === 'specialBox' || entry.specialRole) {
+        try { createSpecialBox(entry.role || entry.specialRole, { name: entry.name, position: entry.position, rotation: entry.rotation, scale: entry.scale, color: entry.color, silent: true, noCollision: entry.noCollision, noShadow: entry.noShadow, userHidden: entry.userHidden }); restoredCount++; } catch (e) { failedCount++; }
+      } else if (entry.isPrePlaced) {
+        const found = editorModels.find(m => m.isPrePlaced && m.prePlacedId === entry.prePlacedId);
+        if (found) {
+          found.object.position.fromArray(entry.position);
+          found.object.rotation.set(entry.rotation[0], entry.rotation[1], entry.rotation[2]);
+          found.object.scale.fromArray(entry.scale);
+          if (entry.color && found.object.material && found.object.material.color) found.object.material.color.set(entry.color);
+          if (entry.noCollision !== undefined) found.object.userData.noCollision = entry.noCollision;
+          if (entry.noShadow !== undefined) { found.object.userData.noShadow = entry.noShadow; applyShadowState(found.object); }
+          if (entry.userHidden !== undefined) { found.object.userData.userHidden = entry.userHidden; found.object.visible = !entry.userHidden; }
+          restoredCount++;
+        }
+      } else if (entry.assetPath || entry.url) {
+        entry.url = entry.url || entry.assetPath;
         promises.push(new Promise(resolve => { restoreModelEntry(entry, () => { restoredCount++; resolve(); }); }));
       } else { failedCount++; }
     }
@@ -1373,6 +1468,13 @@ async function loadEditorScene() {
     restoreInProgress = false;
     refreshEditorSceneList();
     if (restoredCount > 0) setTimeout(() => editorToast('Restored ' + restoredCount + ' object' + (restoredCount > 1 ? 's' : '') + ' from last session'), 600);
+  } else {
+    // No saved scene — load the built-in default scene
+    const n = await applySceneEntries(DEFAULT_SCENE_DATA, { save: false });
+    if (n > 0) {
+      saveEditorScene(true);
+      setTimeout(() => editorToast('Loaded default scene (' + n + ' objects)'), 600);
+    }
   }
   historyReady = true;
   pushHistory();
@@ -1380,6 +1482,25 @@ async function loadEditorScene() {
   applySpawnPoint();
 }
 $('ed-clear-saved').onclick = () => { if (!confirm('Clear saved editor scene?')) return; try { localStorage.removeItem(EDITOR_SCENE_KEY); } catch (e) {} editorToast('Saved scene cleared'); };
+
+/* Load Default Scene button — clears current non-preplaced objects and applies DEFAULT_SCENE_DATA */
+$('ed-load-default').onclick = async () => {
+  if (!confirm('Load the built-in default scene? This will replace your current scene.')) return;
+  // Remove all non-preplaced models
+  [...editorModels].forEach(m => {
+    if (m.isPrePlaced) return;
+    scene.remove(m.object);
+    const i = editorModels.indexOf(m);
+    if (i >= 0) editorModels.splice(i, 1);
+  });
+  editorSelection = []; editorSelected = null;
+  updateSelectionVisuals();
+  $('ed-sel-count').textContent = '0';
+  $('ed-no-sel').style.display = 'block';
+  $('ed-prop-body').style.display = 'none';
+  const n = await applySceneEntries(DEFAULT_SCENE_DATA, { save: true });
+  editorToast('Loaded default scene (' + n + ' objects)');
+};
 
 const assetLoadingManager = new THREE.LoadingManager();
 let currentAssetBaseURL = '';
@@ -1616,7 +1737,6 @@ function setBoxOpacity(obj, opacity) {
 
 function updateSpecialBoxVisuals(inEditor) {
   editorModels.forEach(m => {
-    // Universal userHidden override — hides everywhere, even in editor
     if (m.object.userData.userHidden) { m.object.visible = false; return; }
     if (!m.specialRole) return;
     const isSelected = editorSelection.indexOf(m.object) >= 0;
